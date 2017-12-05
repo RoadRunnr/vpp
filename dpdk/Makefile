@@ -218,7 +218,7 @@ $(B)/custom-config: $(B)/.patch.ok Makefile
 	$(call set,RTE_LIBRTE_TIMER,n)
 	$(call set,RTE_LIBRTE_CFGFILE,n)
 	$(call set,RTE_LIBRTE_LPM,n)
-	$(call set,RTE_LIBRTE_ACL,n)
+	$(call set,RTE_LIBRTE_ACL,y)
 	$(call set,RTE_LIBRTE_POWER,n)
 	$(call set,RTE_LIBRTE_DISTRIBUTOR,n)
 	$(call set,RTE_LIBRTE_PORT,n)

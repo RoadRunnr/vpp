@@ -1,0 +1,18 @@
+create host-interface name ens224
+set interface mac address host-ens224 00:50:56:a0:fb:17
+set interface ip address host-ens224 172.20.16.48/24
+set interface state host-ens224 up
+create host-interface name ens256
+set interface mac address host-ens256 00:50:56:a0:42:d2
+set interface ip address host-ens256 172.20.17.2/24
+set interface state host-ens256 up
+tap connect vpptap
+set int ip address tapcli-0 172.21.16.1/24
+set int state tapcli-0 up
+ip route add 0.0.0.0/0 via 172.20.17.1 host-ens256
+gtpdp nwi create name default
+gtpdp nwi set gtpu address name default 172.20.16.48
+gtpdp nwi set interface type name default access interface host-ens224
+gtpdp nwi set interface type name default sgi interface host-ens256
+gtpdp nwi set interface type name default cp interface tapcli-0
+gtpdp sx

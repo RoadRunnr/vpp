@@ -1,3 +1,49 @@
+GTP-U DP based on VPP
+=====================
+
+For main VPP README, skip to the next chapter.
+
+The GTPDP plugins implements a GTP-U datapath based on 3GPP TS 23.214 and
+3GPP TS 29.244 version 14.1.
+
+Note: 3GPP Version 14.2+ changed the binary format of the PFCP protocol. The
+      plugin has not yet been updated to that format.
+
+Working features:
+
+* PFCP decoding of most (but not all IEs)
+* PFCP heartbeat
+* PFCP session related messages
+* Uplink and Downlink Packet Detection Rules (PDR) and
+  Forward Action Rules (FAR) -- (some parts)
+* IPv4 -- inner and outer
+
+Untested
+
+* IPv6 -- inner and outer
+
+No yet working:
+
+* PFCP node related messages (except heartbeat)
+* Usage Reporting Rules (URR)
+* Buffer Action Rules (BAR)
+* QoS Enforcement Rule (QER)
+* Sx Session Reports
+
+Limitations of PDR's and FAR's:
+
+* multiple network instance are not supported
+* only the default VRF is supported
+* FAR action with destination CP or LI are not implemented
+* Uplink SDF's are not checked/applied
+
+General limitations and known deficits:
+
+* Error handling in Sx procedures is weak
+* processing of Session Releated Procedures leaks memory from the messages
+  and might leak memory from applying the rules to the session
+* Session Deletion might leak memory
+
 Vector Packet Processing
 ========================
 
