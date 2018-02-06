@@ -27,6 +27,7 @@
 #include <vnet/plugin/plugin.h>
 #include <vpp/app/version.h>
 #include <gtpdp/gtpdp.h>
+#include <gtpdp/gtpdp_sx.h>
 #include <gtpdp/pfcp.h>
 
 /* Action function shared between message handler and debug CLI */
@@ -663,6 +664,74 @@ VLIB_CLI_COMMAND (gtpdp_show_nwi_command, static) =
   .short_help =
   "show gtpdp nwi",
   .function = gtpdp_show_nwi_command_fn,
+};
+/* *INDENT-ON* */
+
+static clib_error_t *
+gtpdp_show_session_command_fn (vlib_main_t * vm,
+			       unformat_input_t * main_input,
+			       vlib_cli_command_t * cmd)
+{
+  unformat_input_t _line_input, *line_input = &_line_input;
+  gtpdp_main_t * gtm = &gtpdp_main;
+  clib_error_t * error = NULL;
+  u64 cp_seid, up_seid;
+  ip46_address_t cp_ip;
+  u8 has_cp_f_seid = 0, has_up_seid = 0;
+  gtpdp_session_t *sess;
+
+  if (unformat_user (main_input, unformat_line_input, line_input))
+    {
+      while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
+	{
+	  if (unformat (line_input, "cp %U seid %d",
+			unformat_ip46_address, &cp_ip, IP46_TYPE_ANY, &cp_seid))
+	    has_cp_f_seid = 1;
+	  else if (unformat (line_input, "up seid %d", &up_seid))
+	    has_up_seid = 1;
+	  else {
+	    error = unformat_parse_error (line_input);
+	    unformat_free (line_input);
+	    goto done;
+	  }
+	}
+
+      unformat_free (line_input);
+    }
+
+  if (has_cp_f_seid)
+    {
+      error = clib_error_return (0, "CP F_SEID is not supported, yet");
+      goto done;
+    }
+
+  if (has_up_seid)
+    {
+      if (!(sess = sx_lookup(up_seid)))
+	{
+	  error = clib_error_return (0, "Sessions %d not found", up_seid);
+	  goto done;
+	}
+
+      vlib_cli_output (vm, "%U", format_sx_session, sess, SX_ACTIVE);
+    }
+  else
+      pool_foreach (sess, gtm->sessions,
+	({
+	  vlib_cli_output (vm, "%U", format_sx_session, sess, SX_ACTIVE);
+	}));
+
+ done:
+  return error;
+}
+
+/* *INDENT-OFF* */
+VLIB_CLI_COMMAND (gtpdp_show_session_command, static) =
+{
+  .path = "show gtpdp session",
+  .short_help =
+  "show gtpdp session",
+  .function = gtpdp_show_session_command_fn,
 };
 /* *INDENT-ON* */
 
