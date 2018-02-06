@@ -381,7 +381,7 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
   clib_error_t * error = NULL;
   u32 addr_set = 0;
   ip46_address_t ip;
-  u32 teid = 0, mask = 0;
+  u32 teid = 0, mask = 0, teidri = 0;
   u8 *name = NULL;
   u8 *label = NULL;
   u8 add = 1;
@@ -402,8 +402,14 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
 	;
       else if (unformat (line_input, "%U", unformat_ip46_address, &ip, IP46_TYPE_ANY))
 	addr_set = 1;
-      else if (unformat (line_input, "teid %u/%u", &teid, &mask))
-	;
+      else if (unformat (line_input, "teid %u/%u", &teid, &teidri))
+	{
+	  if (teidri > 7) {
+	    error = clib_error_return (0, "TEID Range Indication to large (%d > 7)", teidri);
+	    goto done;
+	  }
+	  mask = 0xfe000000 << (7 - teidri);
+	}
       else {
 	error = unformat_parse_error (line_input);
 	goto done;
@@ -644,10 +650,11 @@ gtpdp_show_nwi_command_fn (vlib_main_t * vm,
 
       pool_foreach (ip_res, nwi->ip_res,
 	({
-	  vlib_cli_output (vm, "  [%d]: vrf: %U, teid: 0x%08x/0x%08x",
+	  vlib_cli_output (vm, "  [%d]: vrf: %U, teid: 0x%08x/%d (0x%08x)",
 			   ip_res - nwi->ip_res,
 			   format_ip46_address, &ip_res->ip, IP46_TYPE_ANY,
-			   ip_res->teid, ip_res->mask);
+			   ip_res->teid, __builtin_popcount(ip_res->mask),
+			   ip_res->mask);
 	}));
     }));
 
