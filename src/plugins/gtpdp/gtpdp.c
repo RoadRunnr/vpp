@@ -410,6 +410,14 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
 	  }
 	  mask = 0xfe000000 << (7 - teidri);
 	}
+      else if (unformat (line_input, "teid 0x%x/%u", &teid, &teidri))
+	{
+	  if (teidri > 7) {
+	    error = clib_error_return (0, "TEID Range Indication to large (%d > 7)", teidri);
+	    goto done;
+	  }
+	  mask = 0xfe000000 << (7 - teidri);
+	}
       else {
 	error = unformat_parse_error (line_input);
 	goto done;
@@ -691,10 +699,15 @@ gtpdp_show_session_command_fn (vlib_main_t * vm,
     {
       while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
 	{
-	  if (unformat (line_input, "cp %U seid %d",
+	  if (unformat (line_input, "cp %U seid %lu",
 			unformat_ip46_address, &cp_ip, IP46_TYPE_ANY, &cp_seid))
 	    has_cp_f_seid = 1;
-	  else if (unformat (line_input, "up seid %d", &up_seid))
+	  else if (unformat (line_input, "cp %U seid 0x%lx",
+			     unformat_ip46_address, &cp_ip, IP46_TYPE_ANY, &cp_seid))
+	    has_cp_f_seid = 1;
+	  else if (unformat (line_input, "up seid %lu", &up_seid))
+	    has_up_seid = 1;
+	  else if (unformat (line_input, "up seid 0x%lx", &up_seid))
 	    has_up_seid = 1;
 	  else {
 	    error = unformat_parse_error (line_input);
