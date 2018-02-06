@@ -239,14 +239,6 @@ format_gtpdp_name (u8 * s, va_list * args)
   return format (s, "gtpdp_session%d", dev_instance);
 }
 
-static uword
-dummy_interface_tx (vlib_main_t * vm,
-		    vlib_node_runtime_t * node, vlib_frame_t * frame)
-{
-  clib_warning ("you shouldn't be here, leaking buffers...");
-  return frame->n_vectors;
-}
-
 static clib_error_t *
 gtpdp_interface_admin_up_down (vnet_main_t * vnm, u32 hw_if_index, u32 flags)
 {
@@ -262,7 +254,6 @@ VNET_DEVICE_CLASS (gtpu_device_class,static) = {
   .name = "GTPU",
   .format_device_name = format_gtpdp_name,
   .format_tx_trace = format_gtpdp_encap_trace,
-  .tx_function = dummy_interface_tx,
   .admin_up_down_function = gtpdp_interface_admin_up_down,
 };
 /* *INDENT-ON* */
@@ -425,6 +416,7 @@ gtpdp_session_t *sx_create_session(uint64_t cp_f_seid)
       hi = vnet_get_hw_interface (vnm, hw_if_index);
     }
 
+  /* Set GTP-U tunnel output node */
   vnet_set_interface_output_node (vnm, hw_if_index, gtpdp_if_input_node.index);
 
   sx->hw_if_index = hw_if_index;
@@ -449,9 +441,6 @@ gtpdp_session_t *sx_create_session(uint64_t cp_f_seid)
   ip6_sw_interface_enable_disable (sw_if_index, 1);
 
   // TODO: setup FIBs
-
-  /* Set gtpu tunnel output node */
-  //hi->output_node_index = encap_index;
 
   vnet_get_sw_interface (vnet_get_main (), sw_if_index)->flood_class =
 	  VNET_FLOOD_CLASS_TUNNEL_NORMAL;
