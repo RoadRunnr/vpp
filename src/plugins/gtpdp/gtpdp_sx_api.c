@@ -694,7 +694,7 @@ static int handle_create_pdr(gtpdp_session_t *sess, pfcp_create_pdr_t *create_pd
       create->id = pdr->pdr_id;
       create->precedence = pdr->precedence;
 
-      create->pdi.nwi = gtm->nwis - nwi;
+      create->pdi.nwi = nwi - gtm->nwis;
       create->pdi.src_sw_if_index =
 	      nwi->intf_sw_if_index[src_to_intf(pdr->pdi.source_interface)];
       if (create->pdi.src_sw_if_index == (u32)~0)
@@ -807,7 +807,7 @@ static int handle_update_pdr(gtpdp_session_t *sess, pfcp_update_pdr_t *update_pd
 	      failed_rule_id->id = pdr->pdr_id;
 	      break;
 	    }
-	  update->pdi.nwi = gtm->nwis - nwi;
+	  update->pdi.nwi = nwi - gtm->nwis;
 	}
       else
 	nwi = pool_elt_at_index (gtm->nwis, update->pdi.nwi);
@@ -1008,7 +1008,7 @@ static int handle_create_far(gtpdp_session_t *sess, pfcp_create_far_t *create_fa
 	      break;
 	    }
 
-	  create->forward.nwi = gtm->nwis - nwi;
+	  create->forward.nwi = nwi - gtm->nwis;
 	  create->forward.dst_sw_if_index =
 	    nwi->intf_sw_if_index[dst_to_intf(far->forwarding_parameters.destination_interface)];
 	  if (create->forward.dst_sw_if_index == (u32)~0)
@@ -1097,7 +1097,7 @@ static int handle_update_far(gtpdp_session_t *sess, pfcp_update_far_t *update_fa
 		  failed_rule_id->id = far->far_id;
 		  break;
 		}
-	      update->forward.nwi = gtm->nwis - nwi;
+	      update->forward.nwi = nwi - gtm->nwis;
 	    }
 	  else
 	    nwi = pool_elt_at_index (gtm->nwis, update->forward.nwi);
