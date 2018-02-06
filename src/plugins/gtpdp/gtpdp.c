@@ -153,8 +153,8 @@ int vnet_gtpdp_nwi_add_del(u8 * name, u32 vrf, u8 add)
  * Translate "foo.com" into "0x3 f o o 0x3 c o m 0x0"
  * A historical / hysterical micro-TLV scheme. DGMS.
  */
-u8 *
-name_to_labels (u8 * name)
+static u8 *
+gtpdp_name_to_labels (u8 * name)
 {
   int i;
   int last_label_index;
@@ -183,11 +183,6 @@ name_to_labels (u8 * name)
   /* Set the last real label length */
   rv[last_label_index] = (i - last_label_index) - 1;
 
-  /*
-   * Add a [sic] NULL root label. Otherwise, the name parser can't figure out
-   * where to stop.
-   */
-  vec_add1 (rv, 0);
   return rv;
 }
 
@@ -229,7 +224,7 @@ gtpdp_nwi_add_del_command_fn (vlib_main_t * vm,
     return clib_error_return (0, "name or label must be specified!");
 
   if (!name)
-    name = name_to_labels(label);
+    name = gtpdp_name_to_labels(label);
 
   rv = vnet_gtpdp_nwi_add_del(name, vrf, add);
 
@@ -426,7 +421,7 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
     }
 
   if (!name)
-    name = name_to_labels(label);
+    name = gtpdp_name_to_labels(label);
 
   rv = vnet_gtpdp_nwi_set_addr(name, &ip, teid, mask, add);
 
@@ -555,7 +550,7 @@ gtpdp_nwi_set_intf_role_command_fn (vlib_main_t * vm,
     }
 
   if (!name)
-    name = name_to_labels(label);
+    name = gtpdp_name_to_labels(label);
 
   rv = vnet_gtpdp_nwi_set_intf_role(name, intf, sw_if_index, add);
 
@@ -623,7 +618,7 @@ gtpdp_show_nwi_command_fn (vlib_main_t * vm,
     }
 
   if (!name && label)
-    name = name_to_labels(label);
+    name = gtpdp_name_to_labels(label);
 
   pool_foreach (nwi, gtm->nwis,
     ({
@@ -632,7 +627,7 @@ gtpdp_show_nwi_command_fn (vlib_main_t * vm,
       if (name && !vec_is_equal(name, nwi->name))
 	continue;
 
-      vlib_cli_output (vm, "%v: vrf: %d", nwi->name, nwi->vrf);
+      vlib_cli_output (vm, "%U: vrf: %d", format_network_instance, nwi->name, nwi->vrf);
       vlib_cli_output (vm, "  Access: %U", format_vnet_sw_if_index_name,
 		       vnm, nwi->intf_sw_if_index[INTF_ACCESS]);
       vlib_cli_output (vm, "  Core: %U", format_vnet_sw_if_index_name,

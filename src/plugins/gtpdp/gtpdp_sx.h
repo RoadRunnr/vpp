@@ -43,6 +43,7 @@ void sx_update_finish(gtpdp_session_t *sx);
 
 gtpdp_session_t *sx_lookup(uint64_t sess_id);
 
+u8 * format_network_instance(u8 * s, va_list * args);
 u8 * format_sx_session(u8 * s, va_list * args);
 void sx_session_dump_tbls(void);
 

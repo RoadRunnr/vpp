@@ -1573,6 +1573,7 @@ typedef struct
   pfcp_sxsrrsp_flags_t sxsrrsp_flags;
 } pfcp_session_report_response_t;
 
+u8 * format_network_instance(u8 * s, va_list * args);
 void pfcp_dump_msg_hdr(pfcp_header_t *pfcp);
 
 int pfcp_decode_msg(u16 type, u8 *p, int len, struct pfcp_group *grp);

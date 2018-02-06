@@ -51,6 +51,34 @@
 
 /*************************************************************************/
 
+u8 *
+format_network_instance(u8 * s, va_list * args)
+{
+  u8 * label = va_arg (*args, u8 *);
+  u8 i = 0;
+
+  if (!label)
+    return format (s, "invalid");
+
+  if (*label > 64)
+    {
+      vec_append(s, label);
+      return s;
+    }
+
+  while (i < vec_len(label))
+    {
+      if (i != 0)
+	vec_add1(s, '.');
+      vec_add(s, label + i + 1, label[i]);
+      i += label[i] + 1;
+    }
+
+  return s;
+}
+
+/*************************************************************************/
+
 static const char *msg_desc[] =
   {
     [PFCP_HEARTBEAT_REQUEST] = "Heartbeat Request",
@@ -602,7 +630,7 @@ static int decode_network_instance(u8 *data, u16 length, void *p)
   vec_reset_length(*v);
   vec_add(*v, data, length);
 
-  pfcp_debug ("PFCP: Network Instance: '%v'", *v);
+  pfcp_debug ("PFCP: Network Instance: '%U'", format_network_instance, *v);
   return 0;
 }
 
@@ -611,7 +639,7 @@ static int encode_network_instance(void *p, u8 **vec)
   pfcp_network_instance_t *v = p;
 
   vec_add(*vec, p, vec_len(p));
-  pfcp_debug ("PFCP: Network Instance: '%v'", *v);
+  pfcp_debug ("PFCP: Network Instance: '%U'", format_network_instance, *v);
   return 0;
 }
 

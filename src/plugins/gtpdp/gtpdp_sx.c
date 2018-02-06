@@ -1684,6 +1684,7 @@ format_sx_session(u8 * s, va_list * args)
   gtpdp_session_t *sx = va_arg (*args, gtpdp_session_t *);
   int rule = va_arg (*args, int);
   struct rules *rules = sx_get_rules(sx, rule);
+  gtpdp_main_t *gtm = &gtpdp_main;
   gtpdp_pdr_t *pdr;
   gtpdp_far_t *far;
   gtpdp_urr_t *urr;
@@ -1697,7 +1698,11 @@ format_sx_session(u8 * s, va_list * args)
 	     rules->pdr, rules->far);
 
   vec_foreach (pdr, rules->pdr) {
+    gtpdp_nwi_t * nwi = NULL;
     size_t j;
+
+    if (!pool_is_free_index (gtm->nwis, pdr->pdi.nwi))
+      nwi = pool_elt_at_index (gtm->nwis, pdr->pdi.nwi);
 
     s = format(s, "PDR: %u @ %p\n"
 	       "  Precedence: %u\n"
@@ -1706,6 +1711,10 @@ format_sx_session(u8 * s, va_list * args)
 	       pdr->id, pdr,
 	       pdr->precedence,
 	       pdr->pdi.fields);
+
+    s = format(s, "    Network Instance: %U\n",
+	       format_network_instance, nwi ? nwi->name : NULL);
+
     if (pdr->pdi.fields & F_PDI_LOCAL_F_TEID)
       {
 	s = format(s, "    Local F-TEID: %u (0x%08x)\n",
@@ -1741,6 +1750,11 @@ format_sx_session(u8 * s, va_list * args)
   }
 
   vec_foreach (far, rules->far) {
+    gtpdp_nwi_t * nwi = NULL;
+
+    if (!pool_is_free_index (gtm->nwis, far->forward.nwi))
+      nwi = pool_elt_at_index (gtm->nwis, far->forward.nwi);
+
     s = format(s, "FAR: %u\n"
 	       "  Apply Action: %08x == %U\n",
 	       far->id, far->apply_action,
@@ -1748,8 +1762,10 @@ format_sx_session(u8 * s, va_list * args)
 
     if (far->apply_action & FAR_FORWARD) {
       s = format(s, "  Forward:\n"
+		 "    Network Instance: %U\n"
 		 "    Destination Interface: %u\n"
 		 "    Outer Header Creation: %u\n",
+		 format_network_instance, nwi ? nwi->name : NULL,
 		 far->forward.dst_intf, far->forward.outer_header_creation);
       switch (far->forward.outer_header_creation) {
       case GTP_U_UDP_IPv4:

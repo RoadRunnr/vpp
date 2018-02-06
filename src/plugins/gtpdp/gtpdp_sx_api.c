@@ -684,6 +684,9 @@ static int handle_create_pdr(gtpdp_session_t *sess, pfcp_create_pdr_t *create_pd
       if (!nwi)
 	{
 	  fformat(stderr, "PDR: %d, PDI for unknown network instance\n", pdr->pdr_id);
+	  if (ISSET_BIT(pdr->pdi.grp.fields, PDI_NETWORK_INSTANCE))
+		  fformat(stderr, "NWI: %v (%d)", pdr->pdi.network_instance,
+			  vec_len(pdr->pdi.network_instance));
 	  failed_rule_id->id = pdr->pdr_id;
 	  break;
 	}
