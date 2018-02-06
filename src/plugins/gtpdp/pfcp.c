@@ -225,28 +225,33 @@ static const char *ie_desc[] =
     [PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION] = "User Plane IP Resource Information",
   };
 
-void pfcp_dump_msg_hdr(pfcp_header_t *pfcp)
+u8 *
+format_pfcp_msg_hdr(u8 * s, va_list * args)
 {
+  pfcp_header_t *pfcp = va_arg (*args, pfcp_header_t *);
   u8 type = pfcp->type;
 
   if (type < ARRAY_LEN(msg_desc) && msg_desc[type])
-    pfcp_debug("PFCP: V:%d,S:%d,MP:%d, %s (%d), Length: %d.",
-		 pfcp->version, pfcp->s_flag, pfcp->mp_flag,
-		 msg_desc[type], type, ntohs(pfcp->length));
+    return format(s, "PFCP: V:%d,S:%d,MP:%d, %s (%d), Length: %d.",
+		  pfcp->version, pfcp->s_flag, pfcp->mp_flag,
+		  msg_desc[type], type, clib_net_to_host_u16 (pfcp->length));
   else
-    pfcp_debug("PFCP: V:%d,S:%d,MP:%d, %d, Length: %d.",
-		 pfcp->version, pfcp->s_flag, pfcp->mp_flag,
-		 type, ntohs(pfcp->length));
+    return format(s, "PFCP: V:%d,S:%d,MP:%d, %d, Length: %d.",
+		  pfcp->version, pfcp->s_flag, pfcp->mp_flag,
+		  type, clib_net_to_host_u16 (pfcp->length));
 }
 
-static void pfcp_dump_ie(pfcp_ie_t *ie)
+u8 *
+format_pfcp_ie(u8 * s, va_list * args)
 {
-  int type = ntohs(ie->type);
+  pfcp_ie_t *ie = va_arg (*args, pfcp_ie_t *);
+  u16 type = clib_net_to_host_u16 (ie->type);
 
   if (type < ARRAY_LEN(ie_desc) && ie_desc[type])
-    pfcp_debug("IE: %s (%d), Length: %d.", ie_desc[type], type, ntohs(ie->length));
+    return format(s, "IE: %s (%d), Length: %d.",
+		  ie_desc[type], type, clib_net_to_host_u16 (ie->length));
   else
-    pfcp_debug("IE: %d, Length: %d.", type, ntohs(ie->length));
+    return format(s, "IE: %d, Length: %d.", type, clib_net_to_host_u16 (ie->length));
 }
 
 /*************************************************************************/
@@ -4296,7 +4301,7 @@ static int decode_group(u8 *p, int len, const struct pfcp_ie_def *grp_def,
     u16 length = ntohs(ie->length);
     const struct pfcp_group_ie_def *item;
 
-    pfcp_dump_ie(ie);
+    pfcp_debug("%U", format_pfcp_ie, ie);
 
     if (pos + length >= len)
 	return PFCP_CAUSE_INVALID_LENGTH;

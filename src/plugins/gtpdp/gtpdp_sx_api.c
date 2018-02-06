@@ -77,7 +77,7 @@ int gtpdp_sx_handle_msg(stream_session_t * s, void *sxp, u8 * data)
   if (len < 4)
     return -1;
 
-  pfcp_dump_msg_hdr(pfcp);
+  clib_warning ("%U", format_pfcp_msg_hdr, pfcp);
 
   if (pfcp->version != 1)
     {

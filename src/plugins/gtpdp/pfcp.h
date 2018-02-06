@@ -1574,7 +1574,7 @@ typedef struct
 } pfcp_session_report_response_t;
 
 u8 * format_network_instance(u8 * s, va_list * args);
-void pfcp_dump_msg_hdr(pfcp_header_t *pfcp);
+u8 * format_pfcp_msg_hdr(u8 * s, va_list * args);
 
 int pfcp_decode_msg(u16 type, u8 *p, int len, struct pfcp_group *grp);
 int pfcp_encode_msg(u16 type, struct pfcp_group *grp, u8 **vec);
