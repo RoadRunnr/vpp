@@ -643,6 +643,13 @@ static int encode_network_instance(void *p, u8 **vec)
   return 0;
 }
 
+static void free_network_instance(void *p)
+{
+  pfcp_network_instance_t *v = p;
+
+  vec_free(*v);
+}
+
 static void debug_sdf_filter(pfcp_sdf_filter_t *v)
 {
   return;
@@ -672,6 +679,7 @@ static int decode_sdf_filter(u8 *data, u16 length, void *p)
       if (length < flow_len)
 	return PFCP_CAUSE_INVALID_LENGTH;
 
+      vec_reset_length(v->flow);
       vec_add(v->flow, data, flow_len);
       length -= flow_len;
     }
@@ -727,6 +735,13 @@ static int encode_sdf_filter(void *p, u8 **vec)
     put_u24(*vec, v->flow_label);
 
   return 0;
+}
+
+static void free_sdf_filter(void *p)
+{
+  pfcp_sdf_filter_t *v = p;
+
+  vec_free(v->flow);
 }
 
 static int decode_application_id(u8 *data, u16 length, void *p)
@@ -1395,6 +1410,13 @@ static int encode_node_id(void *p, u8 **vec)
     }
 
   return 0;
+}
+
+static void free_node_id(void *p)
+{
+  pfcp_node_id_t *v = p;
+
+  vec_free(v->fqdn);
 }
 
 static int decode_pfd_contents(u8 *data, u16 length, void *p)
@@ -2525,6 +2547,13 @@ static int encode_user_plane_ip_resource_information(void *p, u8 **vec)
   return 0;
 }
 
+static void free_user_plane_ip_resource_information(void *p)
+{
+  pfcp_user_plane_ip_resource_information_t *v = p;
+
+  vec_free(v->network_instance);
+}
+
 /* Grouped Information Elements */
 
 
@@ -3359,7 +3388,15 @@ static struct pfcp_group_ie_def pfcp_update_duplicating_parameters_group[] =
     .length = sizeof(pfcp_ ## TYPE ## _t),		\
     .decode = decode_ ## TYPE,				\
     .encode = encode_ ## TYPE,				\
-  }
+}
+
+#define SIMPLE_IE_FREE(IE, TYPE)			\
+  [IE] = {						\
+    .length = sizeof(pfcp_ ## TYPE ## _t),		\
+    .decode = decode_ ## TYPE,				\
+    .encode = encode_ ## TYPE,				\
+    .free = free_ ## TYPE,				\
+}
 
 static struct pfcp_ie_def group_specs[] =
   {
@@ -3497,8 +3534,8 @@ static struct pfcp_ie_def group_specs[] =
     SIMPLE_IE(PFCP_IE_CAUSE, cause),
     SIMPLE_IE(PFCP_IE_SOURCE_INTERFACE, source_interface),
     SIMPLE_IE(PFCP_IE_F_TEID, f_teid),
-    SIMPLE_IE(PFCP_IE_NETWORK_INSTANCE, network_instance),
-    SIMPLE_IE(PFCP_IE_SDF_FILTER, sdf_filter),
+    SIMPLE_IE_FREE(PFCP_IE_NETWORK_INSTANCE, network_instance),
+    SIMPLE_IE_FREE(PFCP_IE_SDF_FILTER, sdf_filter),
     SIMPLE_IE(PFCP_IE_APPLICATION_ID, application_id),
     SIMPLE_IE(PFCP_IE_GATE_STATUS, gate_status),
     SIMPLE_IE(PFCP_IE_MBR, mbr),
@@ -3562,7 +3599,7 @@ static struct pfcp_ie_def group_specs[] =
       .size = ARRAY_LEN(pfcp_pfd_group),
       .group = pfcp_pfd_group,
     },
-    SIMPLE_IE(PFCP_IE_NODE_ID, node_id),
+    SIMPLE_IE_FREE(PFCP_IE_NODE_ID, node_id),
     SIMPLE_IE(PFCP_IE_PFD_CONTENTS, pfd_contents),
     SIMPLE_IE(PFCP_IE_MEASUREMENT_METHOD, measurement_method),
     SIMPLE_IE(PFCP_IE_USAGE_REPORT_TRIGGER, usage_report_trigger),
@@ -3696,7 +3733,7 @@ static struct pfcp_ie_def group_specs[] =
     SIMPLE_IE(PFCP_IE_PDN_TYPE, pdn_type),
     SIMPLE_IE(PFCP_IE_FAILED_RULE_ID, failed_rule_id),
     SIMPLE_IE(PFCP_IE_TIME_QUOTA_MECHANISM, time_quota_mechanism),
-    SIMPLE_IE(PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION, user_plane_ip_resource_information),
+    SIMPLE_IE_FREE(PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION, user_plane_ip_resource_information),
   };
 
 /**********************************************************/
@@ -4584,7 +4621,57 @@ static int encode_group(const struct pfcp_ie_def *def, struct pfcp_group *grp, u
 int pfcp_encode_msg(u16 type, struct pfcp_group *grp, u8 **vec)
 {
   assert (type < ARRAY_LEN(msg_specs));
-  assert (msg_specs[type].group != NULL);
+  assert (msg_specs[type].size == 0 || msg_specs[type].group != NULL);
 
   return encode_group(&msg_specs[type], grp, vec);
+}
+
+static void free_group(const struct pfcp_ie_def *def, struct pfcp_group *grp);
+
+static void free_ie(const struct pfcp_group_ie_def *item,
+		    const struct pfcp_ie_def *def,
+		    u8 *v)
+{
+  if (def->size != 0)
+    free_group(def, (struct pfcp_group *)v);
+  else if (def->free)
+    def->free(v);
+}
+
+static void free_vector_ie(const struct pfcp_group_ie_def *item,
+			   const struct pfcp_ie_def *def,
+			   u8 *v)
+{
+  for (u8 *i = *(u8 **)v; i < vec_end(*(u8 **)v); i += def->length)
+    free_ie(item, def, i);
+  vec_free(*(u8 **)v);
+}
+
+static void free_group(const struct pfcp_ie_def *def, struct pfcp_group *grp)
+{
+  for (int i = 0; i < def->size; i++)
+    {
+      const struct pfcp_group_ie_def *item = &def->group[i];
+      const struct pfcp_ie_def *ie_def = &group_specs[item->type];
+      u8 *v = ((u8 *)grp) + item->offset;
+
+      if (item->type == 0)
+	      continue;
+
+      if (!ISSET_BIT(grp->fields, i))
+	continue;
+
+      if (item->is_array)
+	free_vector_ie(item, ie_def, v);
+      else
+	free_ie(item, ie_def, v);
+    }
+}
+
+void pfcp_free_msg(u16 type, struct pfcp_group *grp)
+{
+  assert (type < ARRAY_LEN(msg_specs));
+  assert (msg_specs[type].size == 0 || msg_specs[type].group != NULL);
+
+  free_group(&msg_specs[type], grp);
 }

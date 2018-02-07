@@ -96,6 +96,7 @@ struct pfcp_ie_def {
     struct {
       int (* decode)(u8 *, u16 length, void *);
       int (* encode)(void *, u8 **);
+      void (* free)(void *);
     };
   };
 };
@@ -1599,6 +1600,7 @@ u8 * format_node_id(u8 * s, va_list * args);
 
 int pfcp_decode_msg(u16 type, u8 *p, int len, struct pfcp_group *grp);
 int pfcp_encode_msg(u16 type, struct pfcp_group *grp, u8 **vec);
+void pfcp_free_msg(u16 type, struct pfcp_group *grp);
 
 #endif // included_vnet_pfcp_h
 

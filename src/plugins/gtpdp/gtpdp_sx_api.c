@@ -98,7 +98,7 @@ int gtpdp_sx_handle_msg(stream_session_t * s, void *sxp, u8 * data)
       _vec_len(hdr) = offsetof(pfcp_header_t, msg_hdr.ies);
 
       gtpdp_sx_send_data(s, (u8 *)hdr);
-
+      vec_free(hdr);
       return 0;
   }
 
@@ -368,11 +368,15 @@ static int send_response(stream_session_t * s, u8 type,
 
   r = pfcp_encode_msg(type, grp, &b);
   if (r != 0)
-    return 0;
+    goto out_free;
 
   resp->length = htons(_vec_len(b) - 4);
 
   gtpdp_sx_send_data(s, b);
+
+ out_free:
+  pfcp_free_msg(type, grp);
+  vec_free(b);
   return 0;
 }
 
@@ -599,6 +603,7 @@ static int node_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t
   if (r != 0)
     {
       //TODO: error reply
+      pfcp_free_msg(pfcp->type, &msg.grp);
       return r;
     }
 
@@ -673,6 +678,7 @@ static int node_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t
       break;
     }
 
+  pfcp_free_msg(pfcp->type, &msg.grp);
   return 0;
 }
 
@@ -1744,6 +1750,7 @@ static int session_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_heade
   if (r != 0)
     {
       //TODO: error reply
+      pfcp_free_msg(pfcp->type, &msg.grp);
       return r;
     }
 
@@ -1803,5 +1810,6 @@ static int session_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_heade
       break;
     }
 
+  pfcp_free_msg(pfcp->type, &msg.grp);
   return 0;
 }
