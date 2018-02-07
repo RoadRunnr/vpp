@@ -368,7 +368,8 @@ format_pfcp_ie(u8 * s, va_list * args)
 
 #define put_ip4(V,IP)				\
   do {						\
-    *(u32 *)(V) = (IP).as_u32;			\
+    u8 *_t = vec_end((V));			\
+    *(u32 *)_t = (IP).as_u32;			\
     _vec_len((V)) += 4;				\
   } while (0)
 
@@ -381,16 +382,14 @@ format_pfcp_ie(u8 * s, va_list * args)
 
 #define put_ip6(V,IP)				\
   do {						\
-    ((u64 *)(V))[0] = (IP).as_u64[0];		\
-    ((u64 *)(V))[1] = (IP).as_u64[1];		\
+    u8 *_t = vec_end((V));			\
+    ((u64 *)_t)[0] = (IP).as_u64[0];		\
+    ((u64 *)_t)[1] = (IP).as_u64[1];		\
     _vec_len((V)) += 16;			\
 } while (0)
 
 #define put_ip46_ip4(V,IP)			\
-  do {						\
-    memcpy(&(V)[_vec_len((V))], &(IP).ip4, 4);	\
-    _vec_len((V)) += 4;				\
-  } while (0)
+  put_ip4(V, (IP).ip4)
 
 #define get_ip46_ip4(IP,V)				\
   do {							\
@@ -399,16 +398,10 @@ format_pfcp_ie(u8 * s, va_list * args)
   } while (0)
 
 #define put_ip46_ip6(V,IP)			\
-  do {						\
-    memcpy(&(V)[_vec_len((V))], &(IP).ip6, 16);	\
-    _vec_len((V)) += 16;			\
-} while (0)
+  put_ip6(V, (IP).ip6)
 
 #define get_ip46_ip6(IP,V)			\
-  do {						\
-    memcpy(&(IP).ip6, (V), 16);			\
-    (V) += 16;					\
-  } while (0)
+  get_ip6((IP).ip6, (V))
 
 #define finalize_msg(V,P)			\
   do {						\
@@ -643,8 +636,10 @@ static int encode_network_instance(void *p, u8 **vec)
 {
   pfcp_network_instance_t *v = p;
 
-  vec_add(*vec, p, vec_len(p));
   pfcp_debug ("PFCP: Network Instance: '%U'", format_network_instance, *v);
+
+  vec_append(*vec, p);
+
   return 0;
 }
 
