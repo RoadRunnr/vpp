@@ -245,7 +245,16 @@ typedef u32 pfcp_forwarding_policy_t;
 typedef u8 pfcp_destination_interface_t;
 
 #define PFCP_IE_UP_FUNCTION_FEATURES			43
-typedef u32 pfcp_up_function_features_t;
+typedef u16 pfcp_up_function_features_t;
+#define F_UPFF_EMPU					BIT(0)
+#define F_UPFF_BUCP					BIT(8)
+#define F_UPFF_DDND					BIT(9)
+#define F_UPFF_DLBD					BIT(10)
+#define F_UPFF_TRST					BIT(11)
+#define F_UPFF_FTUP					BIT(12)
+#define F_UPFF_PFDM					BIT(13)
+#define F_UPFF_HEEU					BIT(14)
+#define F_UPFF_TREU					BIT(15)
 
 #define PFCP_IE_APPLY_ACTION				44
 typedef u8 pfcp_apply_action_t;
@@ -293,7 +302,6 @@ typedef struct {
 #define PFCP_IE_PFD					59
 
 #define PFCP_IE_NODE_ID					60
-//TODO:
 typedef struct {
   u8 type;
 #define NID_IPv4 0
@@ -492,7 +500,18 @@ typedef struct {
 typedef u32 pfcp_time_quota_mechanism_t;
 
 #define PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION	116
-typedef u32 pfcp_user_plane_ip_resource_information_t;
+typedef struct {
+  u8 flags;
+#define USER_PLANE_IP_RESOURCE_INFORMATION_V4		BIT(0)
+#define USER_PLANE_IP_RESOURCE_INFORMATION_V6		BIT(1)
+#define USER_PLANE_IP_RESOURCE_INFORMATION_ASSOCNI	BIT(5)
+
+  pfcp_network_instance_t network_instance;
+  u8 teid_range_indication;
+  u8 teid_range;
+  ip4_address_t ip4;
+  ip6_address_t ip6;
+} pfcp_user_plane_ip_resource_information_t;
 
 /* Grouped PFCP Information Elements */
 
@@ -1575,6 +1594,8 @@ typedef struct
 
 u8 * format_network_instance(u8 * s, va_list * args);
 u8 * format_pfcp_msg_hdr(u8 * s, va_list * args);
+u8 * format_user_plane_ip_resource_information(u8 * s, va_list * args);
+u8 * format_node_id(u8 * s, va_list * args);
 
 int pfcp_decode_msg(u16 type, u8 *p, int len, struct pfcp_group *grp);
 int pfcp_encode_msg(u16 type, struct pfcp_group *grp, u8 **vec);

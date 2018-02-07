@@ -1058,17 +1058,36 @@ static int encode_destination_interface(void *p, u8 **vec)
 
 static int decode_up_function_features(u8 *data, u16 length, void *p)
 {
-  pfcp_up_function_features_t *v __attribute__ ((unused)) = p;
+  pfcp_up_function_features_t *v = p;
 
-  pfcp_warning ("PFCP: TODO decode_up_function_features");
+  if (length < 2)
+    return PFCP_CAUSE_INVALID_LENGTH;
+
+  *v = get_u16(data);
+
+  pfcp_warning ("PFCP: UP Function Features: BUCP:%d,DDND:%d,DLBD:%d,"
+		"TRST:%d,FTUP:%d,PFDM:%d,HEEU:%d,TREU:%d,EMPU:%d",
+		!!(*v & F_UPFF_BUCP), !!(*v & F_UPFF_DDND),
+		!!(*v & F_UPFF_DLBD), !!(*v & F_UPFF_TRST),
+		!!(*v & F_UPFF_FTUP), !!(*v & F_UPFF_PFDM),
+		!!(*v & F_UPFF_HEEU), !!(*v & F_UPFF_TREU),
+		!!(*v & F_UPFF_EMPU));
   return 0;
 }
 
 static int encode_up_function_features(void *p, u8 **vec)
 {
-  pfcp_up_function_features_t *v __attribute__ ((unused)) = p;
+  pfcp_up_function_features_t *v = p;
 
-  pfcp_warning ("PFCP: TODO encode_up_function_features");
+  pfcp_warning ("PFCP: UP Function Features: BUCP:%d,DDND:%d,DLBD:%d,"
+		"TRST:%d,FTUP:%d,PFDM:%d,HEEU:%d,TREU:%d,EMPU:%d",
+		!!(*v & F_UPFF_BUCP), !!(*v & F_UPFF_DDND),
+		!!(*v & F_UPFF_DLBD), !!(*v & F_UPFF_TRST),
+		!!(*v & F_UPFF_FTUP), !!(*v & F_UPFF_PFDM),
+		!!(*v & F_UPFF_HEEU), !!(*v & F_UPFF_TREU),
+		!!(*v & F_UPFF_EMPU));
+
+  put_u16(*vec, *v);
   return 0;
 }
 
@@ -1296,19 +1315,85 @@ static int encode_f_seid(void *p, u8 **vec)
   return 0;
 }
 
+u8 *
+format_node_id(u8 * s, va_list * args)
+{
+  pfcp_node_id_t *n = va_arg (*args, pfcp_node_id_t *);
+
+  switch (n->type)
+    {
+    case NID_IPv4:
+    case NID_IPv6:
+      s = format(s, "%U", format_ip46_address, &n->ip, IP46_TYPE_ANY);
+      break;
+
+    case NID_FQDN:
+      s = format(s, "%U", format_network_instance, &n->fqdn);
+      break;
+    }
+  return s;
+}
+
 static int decode_node_id(u8 *data, u16 length, void *p)
 {
-  pfcp_node_id_t *v __attribute__ ((unused)) = p;
+  pfcp_node_id_t *v = p;
 
-  pfcp_warning ("PFCP: TODO decode_node_id");
+  if (length < 1)
+    return PFCP_CAUSE_INVALID_LENGTH;
+
+  v->type = get_u8(data) & 0x0f;
+  length--;
+
+  switch (v->type)
+    {
+    case NID_IPv4:
+      if (length < 4)
+	return PFCP_CAUSE_INVALID_LENGTH;
+      get_ip46_ip4(v->ip, data);
+      break;
+
+    case NID_IPv6:
+      if (length < 16)
+	return PFCP_CAUSE_INVALID_LENGTH;
+      get_ip46_ip6(v->ip, data);
+      break;
+
+    case NID_FQDN:
+      vec_reset_length(v->fqdn);
+      vec_add(v->fqdn, data, length);
+      break;
+
+    default:
+      return PFCP_CAUSE_REQUEST_REJECTED;
+    }
+
+  pfcp_debug ("PFCP: Node Id: %U.", format_node_id, v);
   return 0;
 }
 
 static int encode_node_id(void *p, u8 **vec)
 {
-  pfcp_node_id_t *v __attribute__ ((unused)) = p;
+  pfcp_node_id_t *v = p;
 
-  pfcp_warning ("PFCP: TODO encode_node_id");
+  pfcp_debug ("PFCP: Node Id: %U.", format_node_id, v);
+
+  put_u8(*vec, v->type);
+
+  switch (v->type)
+    {
+    case NID_IPv4:
+      put_ip46_ip4(*vec, v->ip);
+      break;
+
+    case NID_IPv6:
+      put_ip46_ip6(*vec, v->ip);
+      break;
+
+    case NID_FQDN:
+      vec_append(*vec, v->fqdn);
+      break;
+    }
+
   return 0;
 }
 
@@ -2339,19 +2424,104 @@ static int encode_time_quota_mechanism(void *p, u8 **vec)
   return 0;
 }
 
+u8 *
+format_user_plane_ip_resource_information(u8 * s, va_list * args)
+{
+  pfcp_user_plane_ip_resource_information_t *i =
+    va_arg (*args, pfcp_user_plane_ip_resource_information_t *);
+
+  if (i->network_instance)
+    s = format(s, "Network Instance: %U, ",
+	       format_network_instance, i->network_instance);
+
+  if (i->flags & USER_PLANE_IP_RESOURCE_INFORMATION_V4)
+    s = format(s, "%U, ", format_ip4_address, &i->ip4);
+  if (i->flags & USER_PLANE_IP_RESOURCE_INFORMATION_V6)
+    s = format(s, "%U, ", format_ip6_address, &i->ip6);
+
+  if (i->teid_range_indication != 0)
+    s = format(s, "teid: 0x%02x000000/%d", i->teid_range, i->teid_range_indication);
+  else
+    _vec_len(s) -= 2;
+
+  return s;
+}
+
 static int decode_user_plane_ip_resource_information(u8 *data, u16 length, void *p)
 {
-  pfcp_user_plane_ip_resource_information_t *v __attribute__ ((unused)) = p;
+  pfcp_user_plane_ip_resource_information_t *v = p;
+  u8 flags;
 
-  pfcp_warning ("PFCP: TODO decode_user_plane_ip_resource_information");
+  if (length < 1)
+    return PFCP_CAUSE_INVALID_LENGTH;
+
+  flags = get_u8(data);
+  v->flags = flags & 0x03;
+  length--;
+
+  v->teid_range_indication = (flags >> 2) & 0x07;
+  if (v->teid_range_indication != 0)
+    {
+      if (length < 1)
+	return PFCP_CAUSE_INVALID_LENGTH;
+
+      v->teid_range = get_u8(data);
+      length--;
+    }
+
+  if (flags & USER_PLANE_IP_RESOURCE_INFORMATION_V4)
+    {
+      if (length < 4)
+	return PFCP_CAUSE_INVALID_LENGTH;
+      get_ip4(v->ip4, data);
+      length -= 4;
+    }
+
+  if (flags & USER_PLANE_IP_RESOURCE_INFORMATION_V6)
+    {
+      if (length < 16)
+	return PFCP_CAUSE_INVALID_LENGTH;
+      get_ip6(v->ip6, data);
+      length -= 16;
+    }
+
+  if (flags & USER_PLANE_IP_RESOURCE_INFORMATION_ASSOCNI)
+    {
+      vec_reset_length(v->network_instance);
+      vec_add(v->network_instance, data, length);
+    }
+
+  pfcp_debug ("PFCP: User Plane IP Resource Information: '%U'",
+	      format_user_plane_ip_resource_information, v);
   return 0;
 }
 
 static int encode_user_plane_ip_resource_information(void *p, u8 **vec)
 {
-  pfcp_user_plane_ip_resource_information_t *v __attribute__ ((unused)) = p;
+  pfcp_user_plane_ip_resource_information_t *v = p;
+  u8 flags;
 
-  pfcp_warning ("PFCP: TODO encode_user_plane_ip_resource_information");
+  pfcp_debug ("PFCP: User Plane IP Resource Information: '%U'",
+	      format_user_plane_ip_resource_information, v);
+
+  flags = v->flags;
+  flags |= (v->teid_range_indication & 0x07) << 2;
+  flags |= v->network_instance ? USER_PLANE_IP_RESOURCE_INFORMATION_ASSOCNI : 0;
+
+  put_u8(*vec, flags);
+
+  if (v->teid_range_indication != 0)
+    put_u8(*vec, v->teid_range);
+
+  if (v->flags & USER_PLANE_IP_RESOURCE_INFORMATION_V4)
+    put_ip4(*vec, v->ip4);
+
+  if (v->flags & USER_PLANE_IP_RESOURCE_INFORMATION_V6)
+    put_ip6(*vec, v->ip6);
+
+  if (v->network_instance)
+    vec_append(*vec, v->network_instance);
+
   return 0;
 }
 

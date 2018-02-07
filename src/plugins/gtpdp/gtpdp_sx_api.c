@@ -63,6 +63,11 @@ void gtpdp_sx_api_session_data_init(void *sxp, time_t start_time)
 	sx->start_time = start_time;
 }
 
+static void init_response_node_id(struct pfcp_response *r)
+{
+  //TODO: need CLI/API to set local Node-Id.....
+}
+
 /*************************************************************************/
 
 
@@ -421,7 +426,81 @@ static int handle_association_setup_request(stream_session_t * s,
 					    pfcp_header_t *pfcp,
 					    pfcp_association_setup_request_t *msg)
 {
-  return -1;
+  pfcp_association_setup_response_t resp;
+  gtpdp_main_t * gtm = &gtpdp_main;
+  gtpdp_node_assoc_t *n;
+  gtpdp_nwi_t * nwi;
+  int r = 0;
+
+  memset(&resp, 0, sizeof(resp));
+  SET_BIT(resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_CAUSE);
+  resp.response.cause = PFCP_CAUSE_REQUEST_REJECTED;
+
+  init_response_node_id(&resp.response);
+
+  SET_BIT(resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_RECOVERY_TIME_STAMP);
+  resp.recovery_time_stamp = sx->start_time;
+
+  n = sx_get_association(&msg->request.node_id);
+  if (n)
+    {
+      if (n->recovery_time_stamp != msg->recovery_time_stamp)
+	sx_release_association(n);
+      else
+	{
+	  r = -1;
+	  // TODO: maybe handle Node-Id reuse with shutdown of old Assoc?
+	  goto out_send_resp;
+	}
+    }
+
+  n = sx_new_association(&msg->request.node_id);
+  n->recovery_time_stamp = msg->recovery_time_stamp;
+
+  SET_BIT(resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_UP_FUNCTION_FEATURES);
+  resp.up_function_features |= F_UPFF_EMPU;
+  /* currently no optional features are supported */
+
+  pool_foreach (nwi, gtm->nwis,
+    ({
+      gtpdp_nwi_ip_res_t * ip_res;
+
+      pool_foreach (ip_res, nwi->ip_res,
+	({
+	  pfcp_user_plane_ip_resource_information_t *r;
+
+	  vec_alloc(resp.user_plane_ip_resource_information, 1);
+	  r = vec_end(resp.user_plane_ip_resource_information);
+
+	  r->network_instance = vec_dup(nwi->name);
+	  if (ip_res->mask != 0)
+	    {
+	      r->teid_range_indication = __builtin_popcount(ip_res->mask);
+	      r->teid_range = (ip_res->teid >> 24);
+	    }
+
+	  if (ip46_address_is_ip4 (&ip_res->ip))
+	    {
+	      r->flags |= USER_PLANE_IP_RESOURCE_INFORMATION_V4;
+	      r->ip4 = ip_res->ip.ip4;
+	    }
+	  else
+	    {
+	      r->flags |= USER_PLANE_IP_RESOURCE_INFORMATION_V6;
+	      r->ip6 = ip_res->ip.ip6;
+	    }
+
+	  _vec_len(resp.user_plane_ip_resource_information)++;
+	  SET_BIT(resp.grp.fields, ASSOCIATION_SETUP_RESPONSE_USER_PLANE_IP_RESOURCE_INFORMATION);
+	}));
+    }));
+
+ out_send_resp:
+  if (r == 0)
+    resp.response.cause = PFCP_CAUSE_REQUEST_ACCEPTED;
+
+  send_response(s, PFCP_ASSOCIATION_SETUP_RESPONSE, pfcp, &resp.grp);
+  return r;
 }
 
 static int handle_association_setup_response(stream_session_t * s,

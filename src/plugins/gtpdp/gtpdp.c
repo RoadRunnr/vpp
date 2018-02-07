@@ -776,6 +776,11 @@ static clib_error_t * gtpdp_init (vlib_main_t * vm)
 					  sizeof (gtpu6_tunnel_key_t),
 					  sizeof (uword));
   sm->v6_peer = hash_create_mem (0, sizeof (ip6_address_t), sizeof (uword));
+
+  sm->node_index_by_fqdn =
+    hash_create_vec ( /* initial length */ 32, sizeof (u8), sizeof (uword));
+  sm->node_index_by_ip = hash_create_mem (0, sizeof (ip46_address_t), sizeof (uword));
+
 #if 0
   sm->vtep6 = hash_create_mem (0, sizeof (ip6_address_t), sizeof (uword));
 #endif

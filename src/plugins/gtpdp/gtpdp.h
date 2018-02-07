@@ -400,6 +400,11 @@ typedef struct {
 } gtpdp_nwi_t;
 
 typedef struct {
+  pfcp_node_id_t node_id;
+  pfcp_recovery_time_stamp_t recovery_time_stamp;
+} gtpdp_node_assoc_t;
+
+typedef struct {
   /* vector of network instances */
   gtpdp_nwi_t *nwis;
   uword *nwi_index_by_name;
@@ -425,6 +430,12 @@ typedef struct {
   gtpdp_peer_t * peers;
   uword * v4_peer;		/* remote ip4 GTP-U peer keyed on it's ip4 addr */
   uword * v6_peer;		/* remote ip6 GTP-U peer keyed on it's ip6 addr */
+
+  /* vector of associated PFCP nodes */
+  gtpdp_node_assoc_t *nodes;
+  /* lookup PFCP nodes */
+  uword *node_index_by_ip;
+  uword *node_index_by_fqdn;
 
 #if 0
   uword *vtep4;

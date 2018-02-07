@@ -19,6 +19,10 @@
 
 #define MAX_LEN 128
 
+gtpdp_node_assoc_t *sx_get_association(pfcp_node_id_t *node_id);
+gtpdp_node_assoc_t *sx_new_association(pfcp_node_id_t *node_id);
+void sx_release_association(gtpdp_node_assoc_t *n);
+
 gtpdp_session_t *sx_create_session(uint64_t cp_f_seid);
 void sx_update_session(gtpdp_session_t *sx);
 int sx_disable_session(gtpdp_session_t *sx);
@@ -43,7 +47,6 @@ void sx_update_finish(gtpdp_session_t *sx);
 
 gtpdp_session_t *sx_lookup(uint64_t sess_id);
 
-u8 * format_network_instance(u8 * s, va_list * args);
 u8 * format_sx_session(u8 * s, va_list * args);
 void sx_session_dump_tbls(void);
 

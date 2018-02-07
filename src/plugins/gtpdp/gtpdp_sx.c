@@ -368,6 +368,73 @@ static int sx_urr_id_compare(const void *p1, const void *p2)
 	return intcmp(a->id, b->id);
 }
 
+gtpdp_node_assoc_t *sx_get_association(pfcp_node_id_t *node_id)
+{
+  gtpdp_main_t *gtm = &gtpdp_main;
+  uword *p = NULL;
+
+  switch (node_id->type)
+    {
+    case NID_IPv4:
+    case NID_IPv6:
+      p = hash_get_mem (gtm->node_index_by_ip, &node_id->ip);
+      break;
+
+    case NID_FQDN:
+      p = hash_get_mem (gtm->node_index_by_fqdn, node_id->fqdn);
+      break;
+    }
+
+  if (!p)
+    return 0;
+
+  return pool_elt_at_index (gtm->nodes, p[0]);
+}
+
+gtpdp_node_assoc_t *sx_new_association(pfcp_node_id_t *node_id)
+{
+  gtpdp_main_t *gtm = &gtpdp_main;
+  gtpdp_node_assoc_t *n;
+
+  pool_get_aligned (gtm->nodes, n, CLIB_CACHE_LINE_BYTES);
+  memset (n, 0, sizeof (*n));
+  n->node_id = *node_id;
+
+  switch (node_id->type)
+    {
+    case NID_IPv4:
+    case NID_IPv6:
+      hash_set_mem_alloc (&gtm->node_index_by_ip, &node_id->ip, n - gtm->nodes);
+      break;
+
+    case NID_FQDN:
+      hash_set_mem (gtm->node_index_by_fqdn, node_id->fqdn, n - gtm->nodes);
+      break;
+    }
+
+  return n;
+}
+
+void sx_release_association(gtpdp_node_assoc_t *n)
+{
+  gtpdp_main_t *gtm = &gtpdp_main;
+
+  switch (n->node_id.type)
+    {
+    case NID_IPv4:
+    case NID_IPv6:
+      hash_unset_mem_free (&gtm->node_index_by_ip, &n->node_id.ip);
+      break;
+
+    case NID_FQDN:
+      hash_unset_mem (gtm->node_index_by_fqdn, n->node_id.fqdn);
+      vec_free(n->node_id.fqdn);
+      break;
+    }
+
+  pool_put(gtm->nodes, n);
+}
+
 gtpdp_session_t *sx_create_session(uint64_t cp_f_seid)
 {
   vnet_main_t *vnm = gtpdp_main.vnet_main;
