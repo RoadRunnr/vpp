@@ -273,10 +273,14 @@ typedef u32 pfcp_dl_buffering_duration_t;
 typedef u32 pfcp_dl_buffering_suggested_packet_count_t;
 
 #define PFCP_IE_SXSMREQ_FLAGS				49
-typedef u32 pfcp_sxsmreq_flags_t;
+typedef u8 pfcp_sxsmreq_flags_t;
+#define SXSMREQ_DROBU					BIT(0)
+#define SXSMREQ_SNDEM					BIT(1)
+#define SXSMREQ_QAURR					BIT(2)
 
 #define PFCP_IE_SXSRRSP_FLAGS				50
-typedef u32 pfcp_sxsrrsp_flags_t;
+typedef u8 pfcp_sxsrrsp_flags_t;
+#define SXSRRSP_DROBU					BIT(0)
 
 #define PFCP_IE_LOAD_CONTROL_INFORMATION		51
 

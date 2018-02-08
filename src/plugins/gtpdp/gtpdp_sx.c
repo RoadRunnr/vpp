@@ -842,6 +842,13 @@ sx_rule_vector_fns(pdr)
 sx_rule_vector_fns(far)
 sx_rule_vector_fns(urr)
 
+void sx_send_end_marker(gtpdp_session_t *sx, u16 id)
+{
+  struct rules *rules = sx_get_rules(sx, SX_PENDING);
+
+  vec_add1(rules->send_end_marker, id);
+}
+
 static int ip46_address_fib_cmp(const void *a0, const void *b0)
 {
   const ip46_address_fib_t *a = a0;
@@ -1674,6 +1681,24 @@ int sx_update_apply(gtpdp_session_t *sx)
   /* flip the switch */
   sx->active ^= SX_PENDING;
   sx->flags &= ~SX_UPDATING;
+
+  if (pending->send_end_marker)
+    {
+      u16 * send_em;
+
+      vec_foreach (send_em, pending->send_end_marker)
+	{
+	  gtpdp_far_t *far;
+	  gtpdp_far_t r = { .id = *send_em };
+
+	  if (!(far = vec_bsearch(&r, active->far, sx_far_id_compare)))
+	    continue;
+
+	  clib_warning("TODO: send_end_marker for FAR %d", far->id);
+	  gtpu_send_end_marker(&far->forward);
+	}
+      vec_free(pending->send_end_marker);
+    }
 
   pending = sx_get_rules(sx, SX_PENDING);
   if (!pending_pdr) pending->pdr = NULL;

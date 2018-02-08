@@ -66,6 +66,7 @@ typedef struct
 #define GTPU_V1_VER   (1<<5)
 
 #define GTPU_PT_GTP    (1<<4)
+#define GTPU_TYPE_END_MARKER  254
 #define GTPU_TYPE_GTPU  255
 
 /* *INDENT-OFF* */
@@ -320,6 +321,8 @@ typedef struct {
     ip46_address_fib_t *vrf_ip;
     gtpu4_tunnel_key_t *v4_teid;
     gtpu6_tunnel_key_t *v6_teid;
+
+    u16 * send_end_marker;
   } rules[2];
 #define SX_ACTIVE  0
 #define SX_PENDING 1
@@ -469,6 +472,7 @@ extern vlib_node_registration_t gtpdp6_encap_node;
 int gtpdp_enable_disable (gtpdp_main_t * sm, u32 sw_if_index,
 			  int enable_disable);
 u8 * format_gtpdp_encap_trace (u8 * s, va_list * args);
+void gtpu_send_end_marker(gtpdp_far_forward_t * forward);
 
 #endif /* __included_gtpdp_h__ */
 

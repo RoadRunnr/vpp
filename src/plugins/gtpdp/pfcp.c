@@ -1197,33 +1197,51 @@ static int encode_dl_buffering_suggested_packet_count(void *p, u8 **vec)
 
 static int decode_sxsmreq_flags(u8 *data, u16 length, void *p)
 {
-  pfcp_sxsmreq_flags_t *v __attribute__ ((unused)) = p;
+  pfcp_sxsmreq_flags_t *v = p;
 
-  pfcp_warning ("PFCP: TODO decode_sxsmreq_flags");
+  if (length < 1)
+    return PFCP_CAUSE_INVALID_LENGTH;
+
+  *v = get_u8(data);
+
+  pfcp_warning ("PFCP: SxSMReq Flags: DROBU:%d,SNDEM:%d,QUARR:%d",
+		!!(*v & SXSMREQ_DROBU), !!(*v & SXSMREQ_SNDEM),
+		!!(*v & SXSMREQ_QAURR));
   return 0;
 }
 
 static int encode_sxsmreq_flags(void *p, u8 **vec)
 {
-  pfcp_sxsmreq_flags_t *v __attribute__ ((unused)) = p;
+  pfcp_sxsmreq_flags_t *v = p;
 
-  pfcp_warning ("PFCP: TODO encode_sxsmreq_flags");
+  pfcp_warning ("PFCP: SxSMReq Flags: DROBU:%d,SNDEM:%d,QUARR:%d",
+		!!(*v & SXSMREQ_DROBU), !!(*v & SXSMREQ_SNDEM),
+		!!(*v & SXSMREQ_QAURR));
+
+  put_u8(*vec, *v);
   return 0;
 }
 
 static int decode_sxsrrsp_flags(u8 *data, u16 length, void *p)
 {
-  pfcp_sxsrrsp_flags_t *v __attribute__ ((unused)) = p;
+  pfcp_sxsrrsp_flags_t *v = p;
 
-  pfcp_warning ("PFCP: TODO decode_sxsrrsp_flags");
+  if (length < 1)
+    return PFCP_CAUSE_INVALID_LENGTH;
+
+  *v = get_u8(data);
+
+  pfcp_warning ("PFCP: SxSRRsp Flags: DROBU:%d", !!(*v & SXSRRSP_DROBU));
   return 0;
 }
 
 static int encode_sxsrrsp_flags(void *p, u8 **vec)
 {
-  pfcp_sxsrrsp_flags_t *v __attribute__ ((unused)) = p;
+  pfcp_sxsrrsp_flags_t *v = p;
 
-  pfcp_warning ("PFCP: TODO encode_sxsrrsp_flags");
+  pfcp_warning ("PFCP: SxSRRsp Flags: DROBU:%d", !!(*v & SXSRRSP_DROBU));
+
+  put_u8(*vec, *v);
   return 0;
 }
 

@@ -1203,6 +1203,11 @@ static int handle_update_far(gtpdp_session_t *sess, pfcp_update_far_t *update_fa
 	  if (ISSET_BIT(far->update_forwarding_parameters.grp.fields,
 			UPDATE_FORWARDING_PARAMETERS_OUTER_HEADER_CREATION))
 	    {
+	      if (ISSET_BIT(far->update_forwarding_parameters.grp.fields,
+			    UPDATE_FORWARDING_PARAMETERS_SXSMREQ_FLAGS) &&
+		  far->update_forwarding_parameters.sxsmreq_flags & SXSMREQ_SNDEM)
+		sx_send_end_marker(sess, far->far_id);
+
 	      update->forward.outer_header_creation =
 		far->update_forwarding_parameters.outer_header_creation.type + 1;
 	      update->forward.teid =

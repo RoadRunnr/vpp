@@ -40,6 +40,8 @@ sx_rule_vector_fns(pdr)
 sx_rule_vector_fns(far)
 sx_rule_vector_fns(urr)
 
+void sx_send_end_marker(gtpdp_session_t *sx, u16 id);
+
 #undef sx_rule_vector_fns
 
 int sx_update_apply(gtpdp_session_t *sx);

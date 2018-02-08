@@ -22,6 +22,8 @@
 #include <vppinfra/hash.h>
 #include <vnet/vnet.h>
 #include <vnet/ip/ip.h>
+#include <vnet/fib/ip4_fib.h>
+#include <vnet/fib/ip6_fib.h>
 #include <vnet/ethernet/ethernet.h>
 
 #include <gtpdp/gtpdp.h>
@@ -71,6 +73,100 @@ u8 * format_gtpdp_encap_trace (u8 * s, va_list * args)
   s = format (s, "GTPU encap to gtpdp_session%d teid %d",
 	      t->session_index, t->teid);
   return s;
+}
+
+void gtpu_send_end_marker(gtpdp_far_forward_t * forward)
+{
+  gtpdp_main_t * gtm = &gtpdp_main;
+  vlib_main_t *vm = gtm->vlib_main;
+  u32 bi = 0;
+  vlib_buffer_t *p0;
+  u32 next0;
+  vlib_buffer_free_list_t *fl;
+  gtpdp_peer_t * peer0 = NULL;
+  u8 is_ip4;
+  ip4_gtpu_header_t * gtpu4;
+  ip6_gtpu_header_t * gtpu6;
+  u16 new_l0;
+  ip_csum_t sum0;
+  vlib_frame_t *f;
+  u32 *to_next;
+  u32 next_index;
+
+  if (vlib_buffer_alloc (vm, &bi, 1) != 1)
+    return;
+
+  p0 = vlib_get_buffer (vm, bi);
+  fl = vlib_buffer_get_free_list (vm, VLIB_BUFFER_DEFAULT_FREE_LIST_INDEX);
+  vlib_buffer_init_for_free_list (p0, fl);
+  VLIB_BUFFER_TRACE_TRAJECTORY_INIT (p0);
+
+  peer0 = pool_elt_at_index (gtm->peers, forward->peer_idx);
+  next0 = peer0->next_dpo.dpoi_next_node;
+  vnet_buffer (p0)->sw_if_index[VLIB_TX] = peer0->encap_fib_index;
+  vnet_buffer(p0)->ip.adj_index[VLIB_TX] = peer0->next_dpo.dpoi_index;
+
+  is_ip4 = forward->outer_header_creation == GTP_U_UDP_IPv4;
+
+  if (is_ip4)
+    {
+      gtpu4 = vlib_buffer_get_current(p0);
+      p0->current_length = sizeof(*gtpu4);
+      memcpy(gtpu4, forward->rewrite, vec_len(forward->rewrite));
+
+      /* Fix the IP4 checksum and length */
+      sum0 = gtpu4->ip4.checksum;
+      new_l0 = clib_host_to_net_u16 (vlib_buffer_length_in_chain (vm, p0));
+      sum0 = ip_csum_update (sum0, 0, new_l0, ip4_header_t, length /* changed member */);
+      gtpu4->ip4.checksum = ip_csum_fold (sum0);
+      gtpu4->ip4.length = new_l0;
+
+      /* Fix UDP length and set source port */
+      gtpu4->udp.length = clib_host_to_net_u16 (sizeof(udp_header_t) + sizeof(gtpu_header_t));
+      gtpu4->udp.src_port = vnet_l2_compute_flow_hash (p0);
+
+      /* Fix GTPU length */
+      gtpu4->gtpu.type = GTPU_TYPE_END_MARKER;
+      gtpu4->gtpu.length = 0;
+
+      next_index = ip4_lookup_node.index;
+    }
+  else /* ip6 path */
+    {
+      int bogus = 0;
+
+      gtpu6 = vlib_buffer_get_current(p0);
+      p0->current_length = sizeof(*gtpu6);
+      memcpy(gtpu6, forward->rewrite, vec_len(forward->rewrite));
+
+      /* Fix IP6 payload length */
+      new_l0 = clib_host_to_net_u16 (sizeof(udp_header_t) + sizeof(gtpu_header_t));
+      gtpu6->ip6.payload_length = new_l0;
+
+      /* Fix UDP length  and set source port */
+      gtpu6->udp.length = new_l0;
+      gtpu6->udp.src_port = vnet_l2_compute_flow_hash (p0);
+
+      /* IPv6 UDP checksum is mandatory */
+      gtpu6->udp.checksum = ip6_tcp_udp_icmp_compute_checksum(vm, p0, &gtpu6->ip6, &bogus);
+      if (gtpu6->udp.checksum == 0)
+	gtpu6->udp.checksum = 0xffff;
+
+      /* Fix GTPU length */
+      gtpu6->gtpu.type = GTPU_TYPE_END_MARKER;
+      gtpu6->gtpu.length = 0;
+
+      next_index = ip6_lookup_node.index;
+    }
+
+  clib_warning("Next: %d, NextIndex: %d", next0, next_index);
+  /* Enqueue the packet right now */
+  f = vlib_get_frame_to_node (vm, next_index);
+  to_next = vlib_frame_vector_args (f);
+  to_next[0] = bi;
+  f->n_vectors = 1;
+  vlib_put_frame_to_node (vm, next_index, f);
+
 }
 
 #define foreach_fixed_header4_offset            \
