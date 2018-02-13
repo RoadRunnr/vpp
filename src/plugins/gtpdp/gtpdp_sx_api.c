@@ -1286,9 +1286,9 @@ static int handle_create_urr(gtpdp_session_t *sess, pfcp_create_urr_t *create_ur
       //TODO: measurement_period;
       if (ISSET_BIT(urr->grp.fields, CREATE_URR_VOLUME_THRESHOLD))
 	{
-	  create->threshold.volume.ul = urr->volume_threshold.ul;
-	  create->threshold.volume.dl = urr->volume_threshold.dl;
-	  create->threshold.volume.total = urr->volume_threshold.total;
+	  create->threshold.volume[URR_COUNTER_UL] = urr->volume_threshold.ul;
+	  create->threshold.volume[URR_COUNTER_DL] = urr->volume_threshold.dl;
+	  create->threshold.volume[URR_COUNTER_TOTAL] = urr->volume_threshold.total;
 	}
 
       //TODO: volume_quota;
@@ -1351,9 +1351,9 @@ static int handle_update_urr(gtpdp_session_t *sess, pfcp_update_urr_t *update_ur
       //TODO: measurement_period;
       if (ISSET_BIT(urr->grp.fields, UPDATE_URR_VOLUME_THRESHOLD))
 	{
-	  update->threshold.volume.ul = urr->volume_threshold.ul;
-	  update->threshold.volume.dl = urr->volume_threshold.dl;
-	  update->threshold.volume.total = urr->volume_threshold.total;
+	  update->threshold.volume[URR_COUNTER_UL] = urr->volume_threshold.ul;
+	  update->threshold.volume[URR_COUNTER_DL] = urr->volume_threshold.dl;
+	  update->threshold.volume[URR_COUNTER_TOTAL] = urr->volume_threshold.total;
 	}
 
       //TODO: volume_quota;
@@ -1415,6 +1415,7 @@ static pfcp_usage_report_t *build_usage_report(gtpdp_session_t *sess, gtpdp_urr_
 					       u32 trigger, pfcp_usage_report_t **report)
 {
   pfcp_usage_report_t *r;
+  vlib_counter_t v;
 
   vec_alloc(*report, 1);
   r = vec_end(*report);
@@ -1437,10 +1438,13 @@ static pfcp_usage_report_t *build_usage_report(gtpdp_session_t *sess, gtpdp_urr_
 
   SET_BIT(r->grp.fields, USAGE_REPORT_VOLUME_MEASUREMENT);
   r->volume_measurement.fields = 7;
-  r->volume_measurement.ul = urr->measurement.volume.ul.bytes;
-  r->volume_measurement.dl = urr->measurement.volume.dl.bytes;
-  r->volume_measurement.total =
-    urr->measurement.volume.ul.bytes + urr->measurement.volume.dl.bytes;
+
+  vlib_get_combined_counter (&urr->measurement.volume, URR_COUNTER_UL, &v);
+  r->volume_measurement.ul = v.bytes;
+  vlib_get_combined_counter (&urr->measurement.volume, URR_COUNTER_DL, &v);
+  r->volume_measurement.dl = v.bytes;
+  vlib_get_combined_counter (&urr->measurement.volume, URR_COUNTER_TOTAL, &v);
+  r->volume_measurement.total = v.bytes;
 
   /* SET_BIT(r->grp.fields, USAGE_REPORT_DURATION_MEASUREMENT); */
   /* SET_BIT(r->grp.fields, USAGE_REPORT_APPLICATION_DETECTION_INFORMATION); */

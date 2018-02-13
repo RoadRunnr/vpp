@@ -258,6 +258,14 @@ typedef struct {
 } gtpdp_far_t;
 
 /* Counter */
+
+enum {
+  URR_COUNTER_UL = 0,
+  URR_COUNTER_DL,
+  URR_COUNTER_TOTAL,
+  URR_COUNTER_NUM,
+};
+
 // TODO: replace with vpp counter
 typedef struct {
     u64 bytes;
@@ -278,19 +286,11 @@ typedef struct {
 #define SX_URR_ENVELOPE  0x0004
 
     struct {
-	struct {
-	    u64 ul;
-	    u64 dl;
-	    u64 total;
-	} volume;
+      u64 volume[URR_COUNTER_NUM];
     } threshold;
 
     struct {
-	struct {
-	    gtpdp_cnt_t ul;
-	    gtpdp_cnt_t dl;
-	    gtpdp_cnt_t total;
-	} volume;
+      vlib_combined_counter_main_t volume;
     } measurement;
 } gtpdp_urr_t;
 

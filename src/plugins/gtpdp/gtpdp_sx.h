@@ -57,4 +57,10 @@ static inline struct rules *sx_get_rules(gtpdp_session_t *sx, int rules)
 	return &sx->rules[sx->active ^ rules];
 }
 
+void vlib_free_combined_counter (vlib_combined_counter_main_t * cm);
+
+void process_urrs(vlib_main_t *vm, struct rules *r,
+		  gtpdp_pdr_t *pdr, vlib_buffer_t * b,
+		  u8 is_dl, u8 is_ul);
+
 #endif /* _GTPDP_SX_H_ */

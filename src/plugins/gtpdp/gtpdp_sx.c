@@ -705,12 +705,20 @@ static int make_pending_urr(gtpdp_session_t *sx)
 {
   struct rules *pending = sx_get_rules(sx, SX_PENDING);
   struct rules *active = sx_get_rules(sx, SX_ACTIVE);
+  gtpdp_urr_t *urr;
 
   if (pending->urr)
     return 0;
 
   if (active->urr)
-    pending->urr = vec_dup(active->urr);
+    {
+      pending->urr = vec_dup(active->urr);
+      vec_foreach (urr, pending->urr)
+	{
+	  memset(&urr->measurement.volume, 0, sizeof(urr->measurement.volume));
+	  vlib_validate_combined_counter(&urr->measurement.volume, URR_COUNTER_NUM);
+	}
+    }
 
   return 0;
 }
@@ -720,6 +728,7 @@ static void sx_free_rules(gtpdp_session_t *sx, int rule)
   struct rules *rules = sx_get_rules(sx, rule);
   gtpdp_pdr_t *pdr;
   gtpdp_far_t *far;
+  gtpdp_urr_t *urr;
 
   vec_foreach (pdr, rules->pdr)
     vec_free(pdr->urr_ids);
@@ -731,6 +740,9 @@ static void sx_free_rules(gtpdp_session_t *sx, int rule)
       vec_free(far->forward.rewrite);
     }
   vec_free(rules->far);
+  vec_foreach (urr, rules->urr)
+    vlib_free_combined_counter(&urr->measurement.volume);
+  vec_free(rules->urr);
   for (size_t i = 0; i < ARRAY_LEN(rules->sdf); i++)
     sx_acl_free(&rules->sdf[i]);
   vec_free(rules->vrf_ip);
@@ -1660,7 +1672,15 @@ int sx_update_apply(gtpdp_session_t *sx)
   else
     pending->far = active->far;
 
-  if (!pending_urr) pending->urr = active->urr;
+  if (pending_urr)
+    {
+      gtpdp_urr_t *urr;
+
+      vec_foreach (urr, pending->urr)
+	vlib_validate_combined_counter(&urr->measurement.volume, URR_COUNTER_NUM);
+    }
+  else
+    pending->urr = active->urr;
 
   if (pending_pdr)
     {
@@ -1729,6 +1749,48 @@ gtpdp_session_t *sx_lookup(uint64_t sess_id)
     return NULL;
 
   return pool_elt_at_index (gtm->sessions, p[0]);
+}
+
+void
+vlib_free_combined_counter (vlib_combined_counter_main_t * cm)
+{
+  vlib_thread_main_t *tm = vlib_get_thread_main ();
+  int i;
+
+  for (i = 0; i < tm->n_vlib_mains; i++)
+    vec_free (cm->counters[i]);
+  vec_free (cm->counters);
+}
+
+void process_urrs(vlib_main_t *vm, struct rules *r,
+		  gtpdp_pdr_t *pdr, vlib_buffer_t * b,
+		  u8 is_dl, u8 is_ul)
+{
+  u32 thread_index = vlib_get_thread_index ();
+  u16 *urr_id;
+
+  vec_foreach (urr_id, pdr->urr_ids)
+    {
+      gtpdp_urr_t * urr = sx_get_urr_by_id(r, *urr_id);
+
+      if (!urr)
+	continue;
+
+      if (urr->methods & SX_URR_VOLUME)
+	{
+	  if (is_dl)
+	    vlib_increment_combined_counter(&urr->measurement.volume, thread_index,
+					    URR_COUNTER_DL, 1,
+					    vlib_buffer_length_in_chain (vm, b));
+	  if (is_ul)
+	    vlib_increment_combined_counter(&urr->measurement.volume, thread_index,
+					    URR_COUNTER_UL, 1,
+					    vlib_buffer_length_in_chain (vm, b));
+	  vlib_increment_combined_counter(&urr->measurement.volume, thread_index,
+					  URR_COUNTER_TOTAL, 1,
+					  vlib_buffer_length_in_chain (vm, b));
+	}
+    }
 }
 
 static u8 *
