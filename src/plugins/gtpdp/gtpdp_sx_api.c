@@ -1563,57 +1563,77 @@ static int handle_session_modification_request(stream_session_t * s,
       goto out_send_resp;
     }
 
-  sx_update_session(sess);
+  if (msg->grp.fields & (BIT(SESSION_MODIFICATION_REQUEST_REMOVE_PDR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_REMOVE_FAR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_REMOVE_URR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_REMOVE_QER) |
+			 BIT(SESSION_MODIFICATION_REQUEST_REMOVE_BAR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_CREATE_PDR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_CREATE_FAR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_CREATE_URR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_CREATE_QER) |
+			 BIT(SESSION_MODIFICATION_REQUEST_CREATE_BAR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_UPDATE_PDR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_UPDATE_FAR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_UPDATE_URR) |
+			 BIT(SESSION_MODIFICATION_REQUEST_UPDATE_QER) |
+			 BIT(SESSION_MODIFICATION_REQUEST_UPDATE_BAR)))
+    {
+      /* invoke the update process only if a update is include */
 
-  if ((r = handle_create_pdr(sess, msg->create_pdr, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      sx_update_session(sess);
 
-  if ((r = handle_update_pdr(sess, msg->update_pdr, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_create_pdr(sess, msg->create_pdr, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_remove_pdr(sess, msg->remove_pdr, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_update_pdr(sess, msg->update_pdr, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_create_far(sess, msg->create_far, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_remove_pdr(sess, msg->remove_pdr, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_update_far(sess, msg->update_far, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_create_far(sess, msg->create_far, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_remove_far(sess, msg->remove_far, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_update_far(sess, msg->update_far, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_create_urr(sess, msg->create_urr, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_remove_far(sess, msg->remove_far, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_update_urr(sess, msg->update_urr, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_create_urr(sess, msg->create_urr, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = handle_remove_urr(sess, msg->remove_urr, &resp.grp,
-			     SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
-			     &resp.failed_rule_id)) != 0)
-    goto out_send_resp;
+      if ((r = handle_update_urr(sess, msg->update_urr, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if ((r = sx_update_apply(sess)) != 0)
-    goto out_update_finish;
+      if ((r = handle_remove_urr(sess, msg->remove_urr, &resp.grp,
+				 SESSION_MODIFICATION_RESPONSE_FAILED_RULE_ID,
+				 &resp.failed_rule_id)) != 0)
+	goto out_send_resp;
 
-  if (vec_len(msg->query_urr) != 0)
+      if ((r = sx_update_apply(sess)) != 0)
+	goto out_update_finish;
+    }
+
+  if (ISSET_BIT(msg->grp.fields, SESSION_MODIFICATION_REQUEST_QUERY_URR) &&
+      vec_len(msg->query_urr) != 0)
     {
       SET_BIT(resp.grp.fields, SESSION_MODIFICATION_RESPONSE_USAGE_REPORT);
 
