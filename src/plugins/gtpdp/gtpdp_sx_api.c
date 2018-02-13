@@ -1648,6 +1648,25 @@ static int handle_session_modification_request(stream_session_t * s,
 			     &resp.usage_report);
 	}
     }
+  else if (ISSET_BIT(msg->grp.fields, SESSION_MODIFICATION_REQUEST_SXSMREQ_FLAGS) &&
+	   msg->sxsmreq_flags & SXSMREQ_QAURR)
+    {
+      struct rules *active;
+
+      active = sx_get_rules(sess, SX_ACTIVE);
+      if (vec_len(active->urr) != 0)
+	{
+	  gtpdp_urr_t *urr;
+
+	  SET_BIT(resp.grp.fields, SESSION_MODIFICATION_RESPONSE_USAGE_REPORT);
+
+	  vec_foreach(urr, active->urr)
+	    {
+	      build_usage_report(sess, urr, USAGE_REPORT_TRIGGER_IMMEDIATE_REPORT,
+				 &resp.usage_report);
+	    }
+	}
+    }
 
  out_update_finish:
   sx_update_finish(sess);
