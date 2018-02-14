@@ -63,7 +63,7 @@ gtpu_input (vlib_main_t * vm,
   vnet_interface_main_t * im = &vnm->interface_main;
   u32 last_session_index = ~0;
   gtpu4_tunnel_key_t last_key4;
-  gtpu6_tunnel_key_t last_key6;
+  clib_bihash_kv_24_8_t last_key6;
   u32 pkts_decapsulated = 0;
   u32 thread_index = vlib_get_thread_index();
   u32 stats_sw_if_index, stats_n_packets, stats_n_bytes;
@@ -95,11 +95,9 @@ gtpu_input (vlib_main_t * vm,
 	  ip6_header_t * ip6_0, * ip6_1;
 	  gtpu_header_t * gtpu0, * gtpu1;
 	  u32 gtpu_hdr_len0 = 0, gtpu_hdr_len1 =0 ;
-	  uword * p0, * p1;
 	  u32 session_index0, session_index1;
 	  gtpdp_session_t * t0, * t1, * mt0 = NULL, * mt1 = NULL;
 	  gtpu4_tunnel_key_t key4_0, key4_1;
-	  gtpu6_tunnel_key_t key6_0, key6_1;
 	  u32 error0, error1;
 	  u32 sw_if_index0, sw_if_index1, len0, len1;
 
@@ -177,22 +175,25 @@ gtpu_input (vlib_main_t * vm,
 	  /* Manipulate packet 0 */
 	  if (is_ip4) {
 	    key4_0.dst = ip4_0->dst_address.as_u32;
-	    key4_0.teid = gtpu0->teid;
+	    key4_0.teid = clib_net_to_host_u32(gtpu0->teid);
 
 	    /* Make sure GTPU tunnel exist according to packet destination IP and teid
 	     * destination identifies a GTP-U entity, and teid identifies a tunnel
 	     * on a given GTP-U entity */
 	   if (PREDICT_FALSE (key4_0.as_u64 != last_key4.as_u64))
 	      {
-		p0 = hash_get (gtm->v4_tunnel_by_key, key4_0.as_u64);
-		if (PREDICT_FALSE (p0 == NULL))
+		clib_bihash_kv_8_8_t kv, value;
+
+		kv.key = key4_0.as_u64;
+
+		if (PREDICT_FALSE (clib_bihash_search_8_8 (&gtm->v4_tunnel_by_key, &kv, &value)))
 		  {
 		    error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
 		    next0 = GTPU_INPUT_NEXT_DROP;
 		    goto trace0;
 		  }
 		last_key4.as_u64 = key4_0.as_u64;
-		session_index0 = last_session_index = p0[0];
+		session_index0 = last_session_index = value.value;
 	      }
 	    else
 	      session_index0 = last_session_index;
@@ -201,24 +202,25 @@ gtpu_input (vlib_main_t * vm,
 	    goto next0; /* valid packet */
 
 	 } else /* !is_ip4 */ {
-	    key6_0.dst.as_u64[0] = ip6_0->dst_address.as_u64[0];
-	    key6_0.dst.as_u64[1] = ip6_0->dst_address.as_u64[1];
-	    key6_0.teid = gtpu0->teid;
+	    clib_bihash_kv_24_8_t kv, value;
+
+	    kv.key[0] = ip6_0->dst_address.as_u64[0];
+	    kv.key[1] = ip6_0->dst_address.as_u64[1];
+	    kv.key[2] = clib_net_to_host_u32(gtpu0->teid);
 
 	    /* Make sure GTPU tunnel exist according to packet destination IP and teid
 	     * destination identifies a GTP-U entity, and teid identifies a tunnel
 	     * on a given GTP-U entity */
-	    if (PREDICT_FALSE (memcmp(&key6_0, &last_key6, sizeof(last_key6)) != 0))
+	    if (PREDICT_FALSE (memcmp(&kv.key, &last_key6.key, sizeof(last_key6.key)) != 0))
 	      {
-		p0 = hash_get_mem (gtm->v6_tunnel_by_key, &key6_0);
-		if (PREDICT_FALSE (p0 == NULL))
+		if (PREDICT_FALSE (clib_bihash_search_24_8 (&gtm->v6_tunnel_by_key, &kv, &value)))
 		  {
 		    error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
 		    next0 = GTPU_INPUT_NEXT_DROP;
 		    goto trace0;
 		  }
-		clib_memcpy (&last_key6, &key6_0, sizeof(key6_0));
-		session_index0 = last_session_index = p0[0];
+		clib_memcpy (&last_key6.key, &kv.key, sizeof(kv.key));
+		session_index0 = last_session_index = value.value;
 	      }
 	    else
 	      session_index0 = last_session_index;
@@ -298,22 +300,25 @@ gtpu_input (vlib_main_t * vm,
 	  /* Manipulate packet 1 */
 	  if (is_ip4) {
 	    key4_1.dst = ip4_1->dst_address.as_u32;
-	    key4_1.teid = gtpu1->teid;
+	    key4_1.teid = clib_net_to_host_u32(gtpu1->teid);
 
 	    /* Make sure GTPU tunnel exist according to packet destination IP and teid
 	     * destination identifies a GTP-U entity, and teid identifies a tunnel
 	     * on a given GTP-U entity */
 	    if (PREDICT_FALSE (key4_1.as_u64 != last_key4.as_u64))
 	      {
-		p1 = hash_get (gtm->v4_tunnel_by_key, key4_1.as_u64);
-		if (PREDICT_FALSE (p1 == NULL))
+		clib_bihash_kv_8_8_t kv, value;
+
+		kv.key = key4_1.as_u64;
+
+		if (PREDICT_FALSE (clib_bihash_search_8_8 (&gtm->v4_tunnel_by_key, &kv, &value)))
 		  {
 		    error1 = GTPU_ERROR_NO_SUCH_TUNNEL;
 		    next1 = GTPU_INPUT_NEXT_DROP;
 		    goto trace1;
 		  }
 		last_key4.as_u64 = key4_1.as_u64;
-		session_index1 = last_session_index = p1[0];
+		session_index1 = last_session_index = value.value;
 	      }
 	    else
 	      session_index1 = last_session_index;
@@ -322,26 +327,25 @@ gtpu_input (vlib_main_t * vm,
 	    goto next1; /* valid packet */
 
 	 } else /* !is_ip4 */ {
-	    key6_1.dst.as_u64[0] = ip6_1->dst_address.as_u64[0];
-	    key6_1.dst.as_u64[1] = ip6_1->dst_address.as_u64[1];
-	    key6_1.teid = gtpu1->teid;
+	    clib_bihash_kv_24_8_t kv, value;
+
+	    kv.key[0] = ip6_1->dst_address.as_u64[0];
+	    kv.key[1] = ip6_1->dst_address.as_u64[1];
+	    kv.key[2] = clib_net_to_host_u32(gtpu1->teid);
 
 	    /* Make sure GTPU tunnel exist according to packet destination IP and teid
 	     * destination identifies a GTP-U entity, and teid identifies a tunnel
 	     * on a given GTP-U entity */
-	    if (PREDICT_FALSE (memcmp(&key6_1, &last_key6, sizeof(last_key6)) != 0))
+	    if (PREDICT_FALSE (memcmp(&kv.key, &last_key6.key, sizeof(last_key6.key)) != 0))
 	      {
-		p1 = hash_get_mem (gtm->v6_tunnel_by_key, &key6_1);
-
-		if (PREDICT_FALSE (p1 == NULL))
+		if (PREDICT_FALSE (clib_bihash_search_24_8 (&gtm->v6_tunnel_by_key, &kv, &value)))
 		  {
 		    error1 = GTPU_ERROR_NO_SUCH_TUNNEL;
 		    next1 = GTPU_INPUT_NEXT_DROP;
 		    goto trace1;
 		  }
-
-		clib_memcpy (&last_key6, &key6_1, sizeof(key6_1));
-		session_index1 = last_session_index = p1[0];
+		clib_memcpy (&last_key6.key, &kv.key, sizeof(kv.key));
+		session_index1 = last_session_index = value.value;
 	      }
 	    else
 	      session_index1 = last_session_index;
@@ -425,11 +429,9 @@ gtpu_input (vlib_main_t * vm,
 	  ip6_header_t * ip6_0;
 	  gtpu_header_t * gtpu0;
 	  u32 gtpu_hdr_len0 = 0;
-	  uword * p0;
 	  u32 session_index0;
 	  gtpdp_session_t * t0, * mt0 = NULL;
 	  gtpu4_tunnel_key_t key4_0;
-	  gtpu6_tunnel_key_t key6_0;
 	  u32 error0;
 	  u32 sw_if_index0, len0;
 
@@ -474,27 +476,25 @@ gtpu_input (vlib_main_t * vm,
 
 	  if (is_ip4) {
 	    key4_0.dst = ip4_0->dst_address.as_u32;
-	    key4_0.teid = gtpu0->teid;
+	    key4_0.teid = clib_net_to_host_u32(gtpu0->teid);
 
 	    /* Make sure GTPU tunnel exist according to packet destination IP and teid
 	     * destination identifies a GTP-U entity, and teid identifies a tunnel
 	     * on a given GTP-U entity */
 	    if (PREDICT_FALSE (key4_0.as_u64 != last_key4.as_u64))
 	      {
-		p0 = hash_get (gtm->v4_tunnel_by_key, key4_0.as_u64);
+		clib_bihash_kv_8_8_t kv, value;
 
-	    clib_warning("gtpu_decap: lookup: TEID: %d, IP:%U, p0: %p, p0[0]: %p.",
-			 clib_net_to_host_u32(key4_0.teid),
-			 format_ip4_address, &key4_0.dst, p0, p0 ? p0[0] : ~0);
+		kv.key = key4_0.as_u64;
 
-		if (PREDICT_FALSE (p0 == NULL))
+		if (PREDICT_FALSE (clib_bihash_search_8_8 (&gtm->v4_tunnel_by_key, &kv, &value)))
 		  {
 		    error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
 		    next0 = GTPU_INPUT_NEXT_DROP;
 		    goto trace00;
 		  }
 		last_key4.as_u64 = key4_0.as_u64;
-		session_index0 = last_session_index = p0[0];
+		session_index0 = last_session_index = value.value;
 	      }
 	    else
 	      session_index0 = last_session_index;
@@ -503,24 +503,25 @@ gtpu_input (vlib_main_t * vm,
 	    goto next00; /* valid packet */
 
 	  } else /* !is_ip4 */ {
-	    key6_0.dst.as_u64[0] = ip6_0->dst_address.as_u64[0];
-	    key6_0.dst.as_u64[1] = ip6_0->dst_address.as_u64[1];
-	    key6_0.teid = gtpu0->teid;
+	    clib_bihash_kv_24_8_t kv, value;
+
+	    kv.key[0] = ip6_0->dst_address.as_u64[0];
+	    kv.key[1] = ip6_0->dst_address.as_u64[1];
+	    kv.key[2] = clib_net_to_host_u32(gtpu0->teid);
 
 	    /* Make sure GTPU tunnel exist according to packet destination IP and teid
 	     * destination identifies a GTP-U entity, and teid identifies a tunnel
 	     * on a given GTP-U entity */
-	    if (PREDICT_FALSE (memcmp(&key6_0, &last_key6, sizeof(last_key6)) != 0))
+	    if (PREDICT_FALSE (memcmp(&kv.key, &last_key6.key, sizeof(last_key6.key)) != 0))
 	      {
-		p0 = hash_get_mem (gtm->v6_tunnel_by_key, &key6_0);
-		if (PREDICT_FALSE (p0 == NULL))
+		if (PREDICT_FALSE (clib_bihash_search_24_8 (&gtm->v6_tunnel_by_key, &kv, &value)))
 		  {
 		    error0 = GTPU_ERROR_NO_SUCH_TUNNEL;
 		    next0 = GTPU_INPUT_NEXT_DROP;
 		    goto trace00;
 		  }
-		clib_memcpy (&last_key6, &key6_0, sizeof(key6_0));
-		session_index0 = last_session_index = p0[0];
+		clib_memcpy (&last_key6.key, &kv.key, sizeof(kv.key));
+		session_index0 = last_session_index = value.value;
 	      }
 	    else
 	      session_index0 = last_session_index;

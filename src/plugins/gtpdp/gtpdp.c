@@ -771,10 +771,14 @@ static clib_error_t * gtpdp_init (vlib_main_t * vm)
   sm->nwi_index_by_name =
     hash_create_vec ( /* initial length */ 32, sizeof (u8), sizeof (uword));
 
-  /* initialize the ip6 hash */
-  sm->v6_tunnel_by_key = hash_create_mem (0,
-					  sizeof (gtpu6_tunnel_key_t),
-					  sizeof (uword));
+  /* initialize the IP/TEID hash's */
+  clib_bihash_init_8_8 (&sm->v4_tunnel_by_key,
+			"gtpdp_v4_tunnel_by_key", GTPDP_MAPPING_BUCKETS,
+			GTPDP_MAPPING_MEMORY_SIZE);
+  clib_bihash_init_24_8 (&sm->v6_tunnel_by_key,
+			"gtpdp_v6_tunnel_by_key", GTPDP_MAPPING_BUCKETS,
+			GTPDP_MAPPING_MEMORY_SIZE);
+
   sm->v6_peer = hash_create_mem (0, sizeof (ip6_address_t), sizeof (uword));
 
   sm->node_index_by_fqdn =

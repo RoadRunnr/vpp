@@ -25,6 +25,8 @@
 
 #include <vppinfra/hash.h>
 #include <vppinfra/error.h>
+#include <vppinfra/bihash_8_8.h>
+#include <vppinfra/bihash_24_8.h>
 
 #include "pfcp.h"
 
@@ -407,6 +409,9 @@ typedef struct {
   pfcp_recovery_time_stamp_t recovery_time_stamp;
 } gtpdp_node_assoc_t;
 
+#define GTPDP_MAPPING_BUCKETS      1024
+#define GTPDP_MAPPING_MEMORY_SIZE  64 << 20
+
 typedef struct {
   /* vector of network instances */
   gtpdp_nwi_t *nwis;
@@ -420,8 +425,8 @@ typedef struct {
   uword *session_by_id;   /* keyed session id */
 
   /* lookup tunnel by TEID */
-  uword *v4_tunnel_by_key;   /* keyed session id */
-  uword *v6_tunnel_by_key;   /* keyed session id */
+  clib_bihash_8_8_t v4_tunnel_by_key;    /* keyed session id */
+  clib_bihash_24_8_t v6_tunnel_by_key;   /* keyed session id */
 
   /* Free vlib hw_if_indices */
   u32 *free_session_hw_if_indices;

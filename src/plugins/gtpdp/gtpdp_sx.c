@@ -295,26 +295,6 @@ static int sx_pdr_id_compare(const void *p1, const void *p2)
 	return intcmp(a->id, b->id);
 }
 
-/* constyfied version of hash_set_mem_alloc/free */
-static void
-hash_set_key_copy (uword ** h, const void *key, uword v)
-{
-  size_t ksz = hash_header (*h)->user;
-  void *copy = clib_mem_alloc (ksz);
-  clib_memcpy (copy, key, ksz);
-  hash_set_mem (*h, copy, v);
-}
-
-static void
-hash_unset_key_free (uword ** h, const void *key)
-{
-  hash_pair_t *hp = hash_get_pair_mem (*h, key);
-  ASSERT (hp);
-  void *k = uword_to_pointer (hp->key, void *);
-  hash_unset_mem (*h, k);
-  clib_mem_free (k);
-}
-
 #define vec_diff(new, old, compar, add_del, user)			\
   do {									\
     size_t _i = 0, _j = 0;						\
@@ -931,57 +911,37 @@ static void sx_add_del_v4_teid(const void *teid, void *si, int is_add)
   gtpdp_main_t *gtm = &gtpdp_main;
   gtpdp_session_t *sess = si;
   const gtpu4_tunnel_key_t *v4_teid = teid;
-  uword *p;
+  clib_bihash_kv_8_8_t kv;
 
-  p = hash_get (gtm->v4_tunnel_by_key, teid);
+  kv.key = v4_teid->as_u64;
+  kv.value = sess - gtm->sessions;
 
-  clib_warning("gtpdp_sx: is_add: %d, TEID: %d, IP:%U, Session:%p, p: %d, idx: %p.",
-	       is_add, clib_net_to_host_u32(v4_teid->teid),
-	       format_ip4_address, &v4_teid->dst, sess, p,
+  clib_warning("gtpdp_sx: is_add: %d, TEID: %d, IP:%U, Session:%p, idx: %p.",
+	       is_add, v4_teid->teid,
+	       format_ip4_address, &v4_teid->dst, sess,
 	       sess - gtm->sessions);
 
-  if (is_add)
-    {
-      /* adding a TEID: TEID must not already exist */
-      if (p)
-	return;
-
-      hash_set (gtm->v4_tunnel_by_key, v4_teid->as_u64, sess - gtm->sessions);
-    }
-  else
-    {
-      /* deleting a TEID: TEID must exist */
-      if (!p)
-	return;
-
-      hash_unset(gtm->v4_tunnel_by_key, v4_teid->as_u64);
-    }
+  clib_bihash_add_del_8_8(&gtm->v4_tunnel_by_key, &kv, is_add);
 }
 
 static void sx_add_del_v6_teid(const void *teid, void *si, int is_add)
 {
   gtpdp_main_t *gtm = &gtpdp_main;
   gtpdp_session_t *sess = si;
-  const gtpu6_tunnel_key_t *v6_teid = v6_teid;
-  uword *p;
+  const gtpu6_tunnel_key_t *v6_teid = teid;
+  clib_bihash_kv_24_8_t kv;
 
-  p = hash_get_mem (gtm->v6_tunnel_by_key, teid);
-  if (is_add)
-    {
-      /* adding a TEID: TEID must not already exist */
-      if (p)
-	return;
+  kv.key[0] = v6_teid->dst.as_u64[0];
+  kv.key[1] = v6_teid->dst.as_u64[1];
+  kv.key[2] = v6_teid->teid;
+  kv.value = sess - gtm->sessions;
 
-      hash_set_key_copy (&gtm->v6_tunnel_by_key, v6_teid, sess - gtm->sessions);
-    }
-  else
-    {
-      /* deleting a TEID: TEID must exist */
-      if (!p)
-	return;
+  clib_warning("gtpdp_sx: is_add: %d, TEID: %d, IP:%U, Session:%p, idx: %p.",
+	       is_add, v6_teid->teid,
+	       format_ip6_address, &v6_teid->dst, sess,
+	       sess - gtm->sessions);
 
-      hash_unset_key_free (&gtm->v6_tunnel_by_key, v6_teid);
-    }
+  clib_bihash_add_del_24_8(&gtm->v6_tunnel_by_key, &kv, is_add);
 }
 
 static u8 *
