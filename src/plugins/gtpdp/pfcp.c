@@ -1000,17 +1000,30 @@ static int encode_redirect_information(void *p, u8 **vec)
 
 static int decode_report_type(u8 *data, u16 length, void *p)
 {
-  pfcp_report_type_t *v __attribute__ ((unused)) = p;
+  pfcp_report_type_t *v = p;
 
-  pfcp_warning ("PFCP: TODO decode_report_type");
+  if (length < 1)
+    return PFCP_CAUSE_INVALID_LENGTH;
+
+  *v = get_u8(data) & 0x07;
+
+  pfcp_debug ("PFCP: Report Type: ERIR:%d,USAR:%d,DLDR:%d",
+	      !!(*v & REPORT_TYPE_ERIR),
+	      !!(*v & REPORT_TYPE_USAR),
+	      !!(*v & REPORT_TYPE_DLDR));
   return 0;
 }
 
 static int encode_report_type(void *p, u8 **vec)
 {
-  pfcp_report_type_t *v __attribute__ ((unused)) = p;
+  pfcp_report_type_t *v = p;
 
-  pfcp_warning ("PFCP: TODO encode_report_type");
+  pfcp_debug ("PFCP: Report Type: ERIR:%d,USAR:%d,DLDR:%d",
+	      !!(*v & REPORT_TYPE_ERIR),
+	      !!(*v & REPORT_TYPE_USAR),
+	      !!(*v & REPORT_TYPE_DLDR));
+
+  put_u8(*vec, *v);
   return 0;
 }
 
@@ -4230,9 +4243,9 @@ static struct pfcp_group_ie_def pfcp_session_deletion_response_group[] =
 
 static struct pfcp_group_ie_def pfcp_session_report_request_group[] =
   {
-    [SESSION_REPORT_REQUEST_NODE_REPORT_TYPE] = {
-      .type = PFCP_IE_NODE_REPORT_TYPE,
-      .offset = offsetof(pfcp_session_report_request_t, node_report_type)
+    [SESSION_REPORT_REQUEST_REPORT_TYPE] = {
+      .type = PFCP_IE_REPORT_TYPE,
+      .offset = offsetof(pfcp_session_report_request_t, report_type)
     },
     [SESSION_REPORT_REQUEST_DOWNLINK_DATA_REPORT] = {
       .type = PFCP_IE_DOWNLINK_DATA_REPORT,
@@ -4454,7 +4467,7 @@ static struct pfcp_ie_def msg_specs[] =
     [PFCP_SESSION_REPORT_REQUEST] =
     {
       .length = sizeof(pfcp_session_report_request_t),
-      .mandatory = BIT(SESSION_REPORT_REQUEST_NODE_REPORT_TYPE),
+      .mandatory = BIT(SESSION_REPORT_REQUEST_REPORT_TYPE),
       .size = ARRAY_LEN(pfcp_session_report_request_group),
       .group = pfcp_session_report_request_group,
     },

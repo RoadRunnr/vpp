@@ -234,7 +234,11 @@ typedef u32 pfcp_reporting_triggers_t;
 typedef u32 pfcp_redirect_information_t;
 
 #define PFCP_IE_REPORT_TYPE				39
-typedef u32 pfcp_report_type_t;
+typedef u8 pfcp_report_type_t;
+
+#define REPORT_TYPE_DLDR				BIT(0)
+#define REPORT_TYPE_USAR				BIT(1)
+#define REPORT_TYPE_ERIR				BIT(2)
 
 #define PFCP_IE_OFFENDING_IE				40
 typedef u32 pfcp_offending_ie_t;
@@ -453,7 +457,7 @@ typedef u32 pfcp_header_enrichment_t;
 typedef u32 pfcp_measurement_information_t;
 
 #define PFCP_IE_NODE_REPORT_TYPE			101
-typedef u32 pfcp_node_report_type_t;
+typedef u8 pfcp_node_report_type_t;
 
 #define PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT		102
 
@@ -1559,7 +1563,7 @@ typedef struct
 } pfcp_session_deletion_response_t;
 
 enum {
-  SESSION_REPORT_REQUEST_NODE_REPORT_TYPE,
+  SESSION_REPORT_REQUEST_REPORT_TYPE,
   SESSION_REPORT_REQUEST_DOWNLINK_DATA_REPORT,
   SESSION_REPORT_REQUEST_USAGE_REPORT,
   SESSION_REPORT_REQUEST_ERROR_INDICATION_REPORT,
@@ -1572,7 +1576,7 @@ typedef struct
 {
   struct pfcp_group grp;
 
-  pfcp_node_report_type_t node_report_type;
+  pfcp_report_type_t report_type;
   pfcp_downlink_data_report_t downlink_data_report;
   pfcp_usage_report_t *usage_report;
   pfcp_error_indication_report_t error_indication_report;
