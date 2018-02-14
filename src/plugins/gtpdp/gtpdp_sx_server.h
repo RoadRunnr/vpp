@@ -51,5 +51,6 @@ typedef struct
 } sx_server_main_t;
 
 void gtpdp_sx_send_data (stream_session_t * s, u8 * data);
+void gtpdp_sx_server_notify(u64 session_handle, u8 * data);
 
 #endif /* _GTPDP_SX_SERVER_H */

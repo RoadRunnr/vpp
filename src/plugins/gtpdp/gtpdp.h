@@ -68,6 +68,7 @@ typedef struct
 #define GTPU_V1_VER   (1<<5)
 
 #define GTPU_PT_GTP    (1<<4)
+#define GTPU_TYPE_ERROR_IND    26
 #define GTPU_TYPE_END_MARKER  254
 #define GTPU_TYPE_GTPU  255
 
@@ -125,6 +126,12 @@ typedef CLIB_PACKED
   u32 teid;
 }) gtpu6_tunnel_key_t;
 /* *INDENT-ON* */
+
+typedef struct {
+  u32 teid;
+  ip46_address_t addr;
+  u16 port;
+} gtp_error_ind_t;
 
 typedef struct {
   ip46_address_t address;
@@ -302,6 +309,9 @@ typedef struct {
 } gtpdp_acl_ctx_t;
 
 typedef struct {
+  /* Sx UDP socket handle */
+  u64 session_handle;
+
   u64 cp_f_seid;
   uint32_t flags;
 #define SX_UPDATING    0x8000
@@ -340,9 +350,10 @@ typedef struct {
 } gtpdp_session_t;
 
 #define foreach_gtpu_input_next        \
-_(DROP, "error-drop")                  \
-_(IP4_INPUT,  "ip4-input")             \
-_(IP6_INPUT, "ip6-input" )
+  _(DROP, "error-drop")		       \
+  _(IP4_INPUT, "ip4-input")	       \
+  _(IP6_INPUT, "ip6-input" )	       \
+  _(ERROR_INDICATION, "gtp-error-indication")
 
 typedef enum
 {

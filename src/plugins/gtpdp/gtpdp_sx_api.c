@@ -339,6 +339,36 @@ format_ipfilter(u8 * s, va_list * args)
 
 /*************************************************************************/
 
+static int send_session_request(gtpdp_session_t * sx, u8 type, struct pfcp_group *grp)
+{
+  pfcp_header_t *req;
+  u8 *b = NULL;
+  int r = 0;
+
+  vec_alloc(b, 2048);
+  req = (pfcp_header_t *)b;
+  req->version = 1;
+  req->s_flag = 1;
+  req->type = type;
+
+  req->session_hdr.seid = clib_host_to_net_u64(sx->cp_f_seid);
+  //TODO: sequence number....
+  _vec_len(b) = offsetof(pfcp_header_t, session_hdr.ies);
+
+  r = pfcp_encode_msg(type, grp, &b);
+  if (r != 0)
+    goto out_free;
+
+  req->length = clib_host_to_net_u16(_vec_len(b) - 4);
+
+  gtpdp_sx_server_notify (sx->session_handle, b);
+
+ out_free:
+  pfcp_free_msg(type, grp);
+  vec_free(b);
+  return 0;
+}
+
 static int send_response(stream_session_t * s, u8 type,
 			 pfcp_header_t *req, struct pfcp_group *grp)
 {
@@ -1493,8 +1523,7 @@ static int handle_session_establishment_request(stream_session_t * s,
   SET_BIT(resp.grp.fields, SESSION_ESTABLISHMENT_RESPONSE_UP_F_SEID);
   resp.up_f_seid.seid = msg->f_seid.seid;
 
-  sess = sx_create_session(msg->f_seid.seid);
-
+  sess = sx_create_session(msg->f_seid.seid, session_handle(s));
 
   if ((r = handle_create_pdr(sess, msg->create_pdr, &resp.grp,
 			     SESSION_ESTABLISHMENT_RESPONSE_FAILED_RULE_ID,
@@ -1860,4 +1889,33 @@ static int session_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_heade
 
   pfcp_free_msg(pfcp->type, &msg.grp);
   return 0;
+}
+
+void gtpdp_sx_error_report(gtpdp_session_t * sx, gtp_error_ind_t * error)
+{
+  pfcp_session_report_request_t req;
+  pfcp_f_teid_t f_teid;
+
+  memset(&req, 0, sizeof(req));
+  SET_BIT(req.grp.fields, SESSION_REPORT_REQUEST_REPORT_TYPE);
+  req.report_type = REPORT_TYPE_ERIR;
+
+  SET_BIT(req.grp.fields, SESSION_REPORT_REQUEST_ERROR_INDICATION_REPORT);
+  SET_BIT(req.error_indication_report.grp.fields, ERROR_INDICATION_REPORT_F_TEID);
+
+  f_teid.teid = error->teid;
+  if (ip46_address_is_ip4(&error->addr))
+    {
+      f_teid.flags = F_TEID_V4;
+      f_teid.ip4 = error->addr.ip4;
+    }
+  else
+    {
+      f_teid.flags = F_TEID_V6;
+      f_teid.ip6 = error->addr.ip6;
+    }
+
+  vec_add1(req.error_indication_report.f_teid, f_teid);
+
+  send_session_request(sx, PFCP_SESSION_REPORT_REQUEST, &req.grp);
 }

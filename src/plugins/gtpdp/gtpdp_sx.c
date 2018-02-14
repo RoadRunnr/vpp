@@ -415,7 +415,7 @@ void sx_release_association(gtpdp_node_assoc_t *n)
   pool_put(gtm->nodes, n);
 }
 
-gtpdp_session_t *sx_create_session(uint64_t cp_f_seid)
+gtpdp_session_t *sx_create_session(uint64_t cp_f_seid, u64 session_handle)
 {
   vnet_main_t *vnm = gtpdp_main.vnet_main;
   l2input_main_t *l2im = &l2input_main;
@@ -428,6 +428,7 @@ gtpdp_session_t *sx_create_session(uint64_t cp_f_seid)
   memset (sx, 0, sizeof (*sx));
 
   sx->cp_f_seid = cp_f_seid;
+  sx->session_handle = session_handle;
   //TODO sx->up_f_seid = sx - gtm->sessions;
   hash_set (gtm->session_by_id, cp_f_seid, sx - gtm->sessions);
 
@@ -1461,6 +1462,26 @@ static void sx_acl_free(gtpdp_acl_ctx_t *ctx)
   rte_acl_free(ctx->ip6);
 }
 
+static void rules_add_v4_teid(struct rules * r, const ip4_address_t * addr, u32 teid)
+{
+  gtpu4_tunnel_key_t key;
+
+  key.teid = teid;
+  key.dst = addr->as_u32;
+
+  vec_add1(r->v4_teid, key);
+}
+
+static void rules_add_v6_teid(struct rules * r, const ip6_address_t * addr, u32 teid)
+{
+  gtpu6_tunnel_key_t key;
+
+  key.teid = teid;
+  key.dst = *addr;
+
+  vec_add1(r->v6_teid, key);
+}
+
 #define sdf_src_address_type(acl)					\
   ipfilter_address_cmp_const(&(acl)->src_address, ACL_FROM_ANY) == 0	\
     ? 0 :								\
@@ -1530,25 +1551,10 @@ static int build_sx_sdf(gtpdp_session_t *sx)
     if (pdr->pdi.fields & F_PDI_LOCAL_F_TEID)
       {
 	if (pdr->pdi.teid.flags & F_TEID_V4)
-	  {
-	    gtpu4_tunnel_key_t *key;
+	  rules_add_v4_teid(pending, &pdr->pdi.teid.ip4, pdr->pdi.teid.teid);
 
-	    vec_alloc(pending->v4_teid, 1);
-	    key = vec_end(pending->v4_teid);
-	    key->teid = htonl(pdr->pdi.teid.teid);
-	    key->dst = pdr->pdi.teid.ip4.as_u32;
-	    _vec_len(pending->v4_teid)++;
-	  }
 	if (pdr->pdi.teid.flags & F_TEID_V6)
-	  {
-	    gtpu6_tunnel_key_t *key;
-
-	    vec_alloc(pending->v6_teid, 1);
-	    key = vec_end(pending->v6_teid);
-	    key->teid = htonl(pdr->pdi.teid.teid);
-	    key->dst = pdr->pdi.teid.ip6;
-	    _vec_len(pending->v6_teid)++;
-	  }
+	  rules_add_v6_teid(pending, &pdr->pdi.teid.ip6, pdr->pdi.teid.teid);
       }
   }
   if (vec_len(pending->pdr) == 0)
@@ -1627,7 +1633,20 @@ int sx_update_apply(gtpdp_session_t *sx)
 
       vec_foreach (far, pending->far)
 	if (far->forward.outer_header_creation != 0)
-	  far->forward.peer_idx = peer_addr_ref(&far->forward.addr);
+	  {
+	    far->forward.peer_idx = peer_addr_ref(&far->forward.addr);
+
+	    switch (far->forward.outer_header_creation)
+	      {
+	      case GTP_U_UDP_IPv4:
+		rules_add_v4_teid(pending, &far->forward.addr.ip4, far->forward.teid);
+		break;
+
+	      case GTP_U_UDP_IPv6:
+		rules_add_v6_teid(pending, &far->forward.addr.ip6, far->forward.teid);
+		break;
+	      }
+	  }
     }
   else
     pending->far = active->far;

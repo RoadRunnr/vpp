@@ -21,6 +21,7 @@
 #include <vlib/vlib.h>
 #include <vnet/pg/pg.h>
 #include <gtpdp/gtpdp.h>
+#include <gtpdp/gtpdp_sx.h>
 
 vlib_node_registration_t gtpu4_input_node;
 vlib_node_registration_t gtpu6_input_node;
@@ -172,6 +173,12 @@ gtpu_input (vlib_main_t * vm,
 	      goto trace0;
 	    }
 
+	  if (PREDICT_FALSE (gtpu0->teid == 0 && gtpu0->type == GTPU_TYPE_ERROR_IND))
+	    {
+	      next0 = GTPU_INPUT_NEXT_ERROR_INDICATION;
+	      goto trace0;
+	    }
+
 	  /* Manipulate packet 0 */
 	  if (is_ip4) {
 	    key4_0.dst = ip4_0->dst_address.as_u32;
@@ -294,6 +301,12 @@ gtpu_input (vlib_main_t * vm,
 	    {
 	      error1 = GTPU_ERROR_BAD_VER;
 	      next1 = GTPU_INPUT_NEXT_DROP;
+	      goto trace1;
+	    }
+
+	  if (PREDICT_FALSE (gtpu1->teid == 0 && gtpu1->type == GTPU_TYPE_ERROR_IND))
+	    {
+	      next1 = GTPU_INPUT_NEXT_ERROR_INDICATION;
 	      goto trace1;
 	    }
 
@@ -471,6 +484,12 @@ gtpu_input (vlib_main_t * vm,
 	    {
 	      error0 = GTPU_ERROR_BAD_VER;
 	      next0 = GTPU_INPUT_NEXT_DROP;
+	      goto trace00;
+	    }
+
+	  if (PREDICT_FALSE (gtpu0->teid == 0 && gtpu0->type == GTPU_TYPE_ERROR_IND))
+	    {
+	      next0 = GTPU_INPUT_NEXT_ERROR_INDICATION;
 	      goto trace00;
 	    }
 
@@ -684,6 +703,236 @@ VLIB_REGISTER_NODE (gtpu6_input_node) = {
 
 VLIB_NODE_FUNCTION_MULTIARCH (gtpu6_input_node, gtpu6_input)
 
+typedef struct {
+  u32 session_index;
+  u32 error;
+  gtp_error_ind_t indication;
+} gtpu_error_ind_trace_t;
+
+static u8 * format_gtpu_error_ind_trace (u8 * s, va_list * args)
+{
+  CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
+  CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
+  gtpu_error_ind_trace_t * t = va_arg (*args, gtpu_error_ind_trace_t *);
+
+  if (t->session_index != ~0)
+    {
+      s = format (s, "GTPU Error Indication from %U, for gtpu_session%d teid %d error %d",
+		  format_ip46_address, &t->indication.addr, IP46_TYPE_ANY,
+		  t->session_index, t->indication.teid, t->error);
+    }
+  else
+    {
+      s = format (s, "GTPU decap error - session for teid %d does not exist",
+		  t->indication.teid);
+    }
+  return s;
+}
+
+static void decode_error_indication_ext_hdr(vlib_buffer_t * b, u8 next_ext_type,
+					    gtp_error_ind_t * error)
+{
+  u8 * start, * end, * p;
+
+  start = p = vlib_buffer_get_current (b);
+  end = vlib_buffer_get_tail (b);
+
+  while (next_ext_type != 0 && p < end)
+    {
+      u16 length = (*p++ * 4) - 2;
+
+      if (end - p < length)
+	break;
+
+      switch (next_ext_type)
+	{
+	case 0x40:		/* Recovery */
+	  if (length < 2)
+	    break;
+
+	  error->port = clib_net_to_host_u16(*(u16 *)p);
+	  break;
+
+	default:
+	  break;
+	}
+      p += length;
+      next_ext_type = *p++;
+    }
+
+  vlib_buffer_advance (b, p - start);
+  return;
+}
+
+static int decode_error_indication(vlib_buffer_t * b, gtp_error_ind_t * error)
+{
+  u8 * p = vlib_buffer_get_current (b);
+  u8 * end = vlib_buffer_get_tail (b);
+  u8 flag = 0;
+  u16 length;
+  while (p < end)
+    {
+      clib_warning("IE: %d", *p);
+      switch (*p++)
+	{
+	case 14:		/* Recovery */
+	  clib_warning("IE: Recovery");
+	  p++;
+	  break;
+
+	case 16:		/* Tunnel Endpoint Identifier Data I */
+	  clib_warning("IE: TEID I, %d", end - p);
+	  if ((flag & 1) | (end - p < 4))
+	    return -1;
+	  flag |= 1;
+	  error->teid = clib_net_to_host_u32(*(u32 *)p);
+	  clib_warning("IE: TEID I, 0x%08x", error->teid);
+	  p += 4;
+	  break;
+
+	case 133:		/* GTP-U Peer Address */
+	  clib_warning("IE: Peer, %d", end - p);
+	  if ((flag & 2) | (end - p < 2))
+	    return -1;
+	  flag |= 2;
+	  length = clib_net_to_host_u16(*(u16 *)p);
+	  clib_warning("IE: Peer Length, %d, %d", length, end - p);
+	  p += 2;
+	  if ((end - p) < length)
+	    return -1;
+	  if (length != 4 && length != 16)
+	    return -1;
+	  error->addr = to_ip46(length == 16, p);
+	  clib_warning("IE: Peer %U",  format_ip46_address, &error->addr, IP46_TYPE_ANY);
+	  p += length;
+	  break;
+
+	default:
+	  return -1;
+	}
+    }
+
+  if (flag != 3)
+    return -1;
+
+  return 0;
+}
+
+static uword
+process_error_indication (vlib_main_t * vm,
+			  vlib_node_runtime_t * node,
+			  vlib_frame_t * frame)
+{
+  gtpdp_main_t * gtm = &gtpdp_main;
+  u32 *buffers, *first_buffer;
+  gtp_error_ind_t error;
+  u32 n_errors_left;
+
+  buffers = vlib_frame_args (frame);
+  first_buffer = buffers;
+
+  n_errors_left = frame->n_vectors;
+
+  while (n_errors_left >= 1)
+    {
+      gtpu_header_t * gtpu;
+      gtpdp_session_t * t;
+      vlib_buffer_t * b;
+      u32 session_index;
+      u32 bi, err;
+      bi = buffers[0];
+
+      buffers += 1;
+      n_errors_left -= 1;
+
+      b = vlib_get_buffer (vm, bi);
+      gtpu = vlib_buffer_get_current (b);
+
+      memset(&error, 0, sizeof(error));
+
+      if (PREDICT_FALSE((gtpu->ver_flags & GTPU_E_S_PN_BIT) != 0))
+	{
+	  /* Pop gtpu header */
+	  vlib_buffer_advance (b, sizeof(gtpu_header_t));
+
+	  if ((gtpu->ver_flags & GTPU_E_BIT) != 0)
+	    decode_error_indication_ext_hdr(b, gtpu->next_ext_type, &error);
+	}
+      else
+	{
+	  /* Pop gtpu header */
+	  vlib_buffer_advance (b, sizeof(gtpu_header_t) - 4);
+	}
+
+      if (decode_error_indication(b, &error) != 0)
+	{
+	  err = GTPU_ERROR_NO_SUCH_TUNNEL;
+	  goto trace;
+	}
+
+      if (ip46_address_is_ip4(&error.addr))
+	{
+	  clib_bihash_kv_8_8_t kv, value;
+	  gtpu4_tunnel_key_t key4;
+
+	  key4.dst = error.addr.ip4.as_u32;
+	  key4.teid = error.teid;
+
+	  kv.key = key4.as_u64;
+
+	  if (PREDICT_FALSE (clib_bihash_search_8_8 (&gtm->v4_tunnel_by_key, &kv, &value)))
+	    {
+	      err = GTPU_ERROR_NO_SUCH_TUNNEL;
+	      goto trace;
+	    }
+	  session_index = value.value;
+	}
+      else
+	{
+	  clib_bihash_kv_24_8_t kv, value;
+
+	  kv.key[0] = error.addr.ip6.as_u64[0];
+	  kv.key[1] = error.addr.ip6.as_u64[1];
+	  kv.key[2] = error.teid;
+
+	  if (PREDICT_FALSE (clib_bihash_search_24_8 (&gtm->v6_tunnel_by_key, &kv, &value)))
+	    {
+	      err = GTPU_ERROR_NO_SUCH_TUNNEL;
+	      goto trace;
+	    }
+	  session_index = value.value;
+	}
+
+      t = pool_elt_at_index (gtm->sessions, session_index);
+
+      gtpdp_sx_error_report(t, &error);
+
+    trace:
+      if (PREDICT_FALSE(b->flags & VLIB_BUFFER_IS_TRACED))
+	{
+	  gtpu_error_ind_trace_t *tr =
+	    vlib_add_trace (vm, node, b, sizeof (*tr));
+	  tr->session_index = session_index;
+	  tr->error = err;
+	  tr->indication = error;
+	}
+
+      vlib_buffer_free (vm, first_buffer, frame->n_vectors);
+      vlib_frame_free (vm, node, frame);
+    }
+
+  return frame->n_vectors;
+}
+
+VLIB_REGISTER_NODE (gtp_error_ind_node) = {
+  .function = process_error_indication,
+  .name = "gtp-error-indication",
+  .vector_size = sizeof (u32),
+//  .format_buffer = format_ip4_header,
+  .format_trace = format_gtpu_error_ind_trace,
+};
+
+VLIB_NODE_FUNCTION_MULTIARCH (gtp_error_ind_node,gtp_error_ind)
 
 typedef enum {
   IP_GTPU_BYPASS_NEXT_DROP,

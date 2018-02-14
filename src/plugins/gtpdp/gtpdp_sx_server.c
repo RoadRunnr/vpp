@@ -32,6 +32,7 @@
 typedef enum
 {
   EVENT_RX = 1,
+  EVENT_NOTIFY,
 } sx_process_event_t;
 
 typedef struct
@@ -189,6 +190,23 @@ sx_process (vlib_main_t * vm,
 	    args->session_handle = evt->session_handle;
 	    args->data = evt->data;
 
+	    clib_mem_free(evt);
+	    break;
+	  }
+
+	case EVENT_NOTIFY:
+	  {
+	    sx_server_event_t *evt = (sx_server_event_t *)event_data[0];
+	    stream_session_t *s;
+
+	    clib_warning ("NOTIFY event %p, %ld, %p. ", evt, evt->session_handle, evt->data);
+
+	    s = session_get_from_handle (args->session_handle);
+	    ASSERT (s);
+
+	    gtpdp_sx_send_data(s, (u8 *)evt->data);
+
+	    vec_free(evt->data);
 	    clib_mem_free(evt);
 	    break;
 	  }
@@ -359,6 +377,45 @@ gtpdp_sx_server_rx_callback (stream_session_t * s)
 
   vec_reset_length(sx->rx_buf[s->thread_index]);
   return 0;
+}
+
+void
+gtpdp_sx_server_notify(u64 session_handle, u8 * data)
+{
+  static u8 dummy_name[] = "Sx-API-1";
+  sx_server_main_t *sx = &sx_server_main;
+  vlib_main_t *vm = sx->vlib_main;
+  BVT (clib_bihash_kv) kv;
+  sx_server_event_t *evt;
+  BVT (clib_bihash) * h;
+  u8 * node_id = NULL;
+  int rv;
+
+  clib_warning ("called...");
+
+  vec_add (node_id, dummy_name, sizeof(dummy_name));
+  vec_add1 (node_id, 0);
+
+  //TODO: find the node_id and forward.... or start a new node process....
+  h = &sx->nodes_hash;
+  kv.key = (u64) node_id;
+  rv = BV (clib_bihash_search) (h, &kv, &kv);
+  clib_warning ("nodes bihash got %d, %p, %d. ", rv, (u8 *)kv.key, kv.value);
+
+  BV (clib_bihash_foreach_key_value_pair) (h, dump_nodes, NULL);
+
+  vec_free(node_id);
+
+  if (rv != 0)
+    return;
+
+  /* signal Sx process to handle data */
+  evt = clib_mem_alloc (sizeof (*evt));
+  evt->session_handle = session_handle;
+  evt->data = vec_dup (data);
+
+  clib_warning ("sending NOTIFY event %p, sh: %ld, data %p", evt, evt->data);
+  vlib_process_signal_event_mt(vm, kv.value, EVENT_NOTIFY, (uword)evt);
 }
 
 /*********************************************************/

@@ -23,7 +23,7 @@ gtpdp_node_assoc_t *sx_get_association(pfcp_node_id_t *node_id);
 gtpdp_node_assoc_t *sx_new_association(pfcp_node_id_t *node_id);
 void sx_release_association(gtpdp_node_assoc_t *n);
 
-gtpdp_session_t *sx_create_session(uint64_t cp_f_seid);
+gtpdp_session_t *sx_create_session(uint64_t cp_f_seid, u64 session_handle);
 void sx_update_session(gtpdp_session_t *sx);
 int sx_disable_session(gtpdp_session_t *sx);
 void sx_free_session(gtpdp_session_t *sx);
@@ -62,5 +62,7 @@ void vlib_free_combined_counter (vlib_combined_counter_main_t * cm);
 void process_urrs(vlib_main_t *vm, struct rules *r,
 		  gtpdp_pdr_t *pdr, vlib_buffer_t * b,
 		  u8 is_dl, u8 is_ul);
+
+void gtpdp_sx_error_report(gtpdp_session_t * sx, gtp_error_ind_t * error);
 
 #endif /* _GTPDP_SX_H_ */
