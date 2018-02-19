@@ -964,18 +964,26 @@ static void sx_add_del_v6_teid(const void *teid, void *si, int is_add)
   clib_bihash_add_del_24_8(&gtm->v6_tunnel_by_key, &kv, is_add);
 }
 
+/* Format an IP4 address. */
+static u8 *format_ip4_address_host (u8 * s, va_list * args)
+{
+  u32 *a = va_arg (*args, u32 *);
+  ip4_address_t ip4;
+
+  ip4.as_u32 = clib_host_to_net_u32(*a);
+  return format (s, "%d.%d.%d.%d", ip4.as_u8[0], ip4.as_u8[1], ip4.as_u8[2], ip4.as_u8[3]);
+}
+
 static u8 *
 format_acl4 (u8 * s, va_list * args)
 {
   struct acl4_rule *rule = va_arg (*args, struct acl4_rule *);
 
-  s = format(s, "%U (%U) %U (%U) %hu : %hu %hu : %hu 0x%hhx/0x%hhx 0x%08x/0x%08x 0x%x-0x%x-0x%x",
-	     format_ip4_address_and_length, &rule->field[SRC_FIELD_IPV4].value.u32,
-	     __builtin_popcount(rule->field[SRC_FIELD_IPV4].mask_range.u32),
-	     format_ip4_address, &rule->field[SRC_FIELD_IPV4].mask_range.u32,
-	     format_ip4_address_and_length, &rule->field[DST_FIELD_IPV4].value.u32,
-	     __builtin_popcount(rule->field[DST_FIELD_IPV4].mask_range.u32),
-	     format_ip4_address, &rule->field[DST_FIELD_IPV4].mask_range.u32,
+  s = format(s, "%U/%d %U/%d %hu : %hu %hu : %hu 0x%hhx/0x%hhx 0x%08x/0x%08x 0x%x-0x%x-0x%x",
+	     format_ip4_address_host, &rule->field[SRC_FIELD_IPV4].value.u32,
+	     rule->field[SRC_FIELD_IPV4].mask_range.u32,
+	     format_ip4_address_host, &rule->field[DST_FIELD_IPV4].value.u32,
+	     rule->field[DST_FIELD_IPV4].mask_range.u32,
 	     rule->field[SRCP_FIELD_IPV4].value.u16,
 	     rule->field[SRCP_FIELD_IPV4].mask_range.u16,
 	     rule->field[DSTP_FIELD_IPV4].value.u16,
@@ -991,11 +999,6 @@ format_acl4 (u8 * s, va_list * args)
   return s;
 }
 
-#define PRIsIPv6 "%04x:%04x"
-#define ARGsIPv6(m)                                             \
-  ntohs(((u16 *)&(m))[0]),					\
-    ntohs(((u16 *)&(m))[1])
-
 static u8 *
 format_acl_ip6_address (u8 * s, va_list * args)
 {
@@ -1003,7 +1006,7 @@ format_acl_ip6_address (u8 * s, va_list * args)
   ip6_address_t addr;
 
   for (int i = 0; i < 4; i ++)
-    addr.as_u32[i] = field[i].value.u32;
+    addr.as_u32[i] = clib_host_to_net_u32(field[i].value.u32);
 
   return format(s, "%U", format_ip6_address, &addr);
 }
@@ -1013,27 +1016,19 @@ format_acl6 (u8 * s, va_list * args)
 {
   struct acl6_rule *rule = va_arg (*args, struct acl6_rule *);
 
-  s = format(s, "%U/%u (" PRIsIPv6 ":" PRIsIPv6 ":" PRIsIPv6 ":" PRIsIPv6 ") ",
+  s = format(s, "%U/%u ",
 	     format_acl_ip6_address, &rule->field[SRC1_FIELD_IPV6],
-	     __builtin_popcount(rule->field[SRC1_FIELD_IPV6].mask_range.u32)
-	     + __builtin_popcount(rule->field[SRC2_FIELD_IPV6].mask_range.u32)
-	     + __builtin_popcount(rule->field[SRC3_FIELD_IPV6].mask_range.u32)
-	     + __builtin_popcount(rule->field[SRC4_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[SRC1_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[SRC2_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[SRC3_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[SRC4_FIELD_IPV6].mask_range.u32));
+	     rule->field[SRC1_FIELD_IPV6].mask_range.u32
+	     + rule->field[SRC2_FIELD_IPV6].mask_range.u32
+	     + rule->field[SRC3_FIELD_IPV6].mask_range.u32
+	     + rule->field[SRC4_FIELD_IPV6].mask_range.u32);
 
-  s = format(s, "%U/%u (" PRIsIPv6 ":" PRIsIPv6 ":" PRIsIPv6 ":" PRIsIPv6 ") ",
+  s = format(s, "%U/%u ",
 	     format_acl_ip6_address, &rule->field[DST1_FIELD_IPV6],
-	     __builtin_popcount(rule->field[DST1_FIELD_IPV6].mask_range.u32)
-	     + __builtin_popcount(rule->field[DST2_FIELD_IPV6].mask_range.u32)
-	     + __builtin_popcount(rule->field[DST3_FIELD_IPV6].mask_range.u32)
-	     + __builtin_popcount(rule->field[DST4_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[DST1_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[DST2_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[DST3_FIELD_IPV6].mask_range.u32),
-	     ARGsIPv6(rule->field[DST4_FIELD_IPV6].mask_range.u32));
+	     rule->field[DST1_FIELD_IPV6].mask_range.u32
+	     + rule->field[DST2_FIELD_IPV6].mask_range.u32
+	     + rule->field[DST3_FIELD_IPV6].mask_range.u32
+	     + rule->field[DST4_FIELD_IPV6].mask_range.u32);
 
   s = format(s, "%hu : %hu %hu : %hu 0x%hhx/0x%hhx 0x%08x/0x%08x 0x%x-0x%x-0x%x",
 	     rule->field[SRCP_FIELD_IPV6].value.u16,
@@ -1074,22 +1069,13 @@ static void rte_acl_set_proto(struct rte_acl_field * field, u8 proto, u8 mask)
   field->mask_range.u8 = mask;
 }
 
-static u32 ip4_mask (u8 pref_len)
-{
-  if (pref_len == 0)
-    return 0;
-  else
-    return clib_host_to_net_u32 (~((1 << (32 - pref_len)) - 1));
-}
-
-
 static void acl_set_ue_ip4(struct acl4_rule *ip4, int field, const gtpdp_pdr_t *pdr)
 {
   if ((pdr->pdi.fields & F_PDI_UE_IP_ADDR) &&
       pdr->pdi.ue_addr.flags & IE_UE_IP_ADDRESS_V4)
     {
-      ip4->field[field].value.u32 = pdr->pdi.ue_addr.ip4.as_u32;
-      ip4->field[field].mask_range.u32 = ~0;
+      ip4->field[field].value.u32 = clib_net_to_host_u32(pdr->pdi.ue_addr.ip4.as_u32);
+      ip4->field[field].mask_range.u32 = 32;
     }
   else
     {
@@ -1108,8 +1094,9 @@ static void ip4_assign_src_address(struct acl4_rule *ip4,
     }
   else
     {
-      ip4->field[field].value.u32 = pdr->pdi.acl.src_address.address.ip4.as_u32;
-      ip4->field[field].mask_range.u32 = ip4_mask(pdr->pdi.acl.src_address.mask);
+      ip4->field[field].value.u32 =
+	clib_net_to_host_u32(pdr->pdi.acl.src_address.address.ip4.as_u32);
+      ip4->field[field].mask_range.u32 = pdr->pdi.acl.src_address.mask;
     }
 }
 
@@ -1120,8 +1107,9 @@ static void ip4_assign_dst_address(struct acl4_rule *ip4,
     acl_set_ue_ip4(ip4, field, pdr);
   else
     {
-      ip4->field[field].value.u32 = pdr->pdi.acl.dst_address.address.ip4.as_u32;
-      ip4->field[field].mask_range.u32 = ip4_mask(pdr->pdi.acl.dst_address.mask);
+      ip4->field[field].value.u32 =
+	clib_net_to_host_u32(pdr->pdi.acl.dst_address.address.ip4.as_u32);
+      ip4->field[field].mask_range.u32 = pdr->pdi.acl.dst_address.mask;
     }
 }
 
@@ -1196,9 +1184,9 @@ static u32 ip6_mask (u8 pos, u8 pref_len)
   if ((4 - pos) > (pref_len / 32))
     return 0;
   else if ((4 - pos) < (pref_len / 32))
-    return ~0;
+    return 32;
   else
-    return clib_host_to_net_u32 (~((1 << (32 - (pref_len % 32))) - 1));
+    return pref_len % 32;
 }
 
 static void acl_set_ue_ip6(struct acl6_rule *ip6, int field, const gtpdp_pdr_t *pdr)
@@ -1207,7 +1195,7 @@ static void acl_set_ue_ip6(struct acl6_rule *ip6, int field, const gtpdp_pdr_t *
       pdr->pdi.ue_addr.flags & IE_UE_IP_ADDRESS_V6)
     for (int i = 0; i < 4; i++)
       {
-	ip6->field[field + i].value.u32 = pdr->pdi.ue_addr.ip6.as_u32[i];
+	ip6->field[field + i].value.u32 = clib_net_to_host_u32(pdr->pdi.ue_addr.ip6.as_u32[i]);
 	ip6->field[field + i].mask_range.u32 = ~0;
       }
   else
@@ -1230,7 +1218,8 @@ static void ip6_assign_src_address(struct acl6_rule *ip6,
   else
     for (int i = 0; i < 4; i++)
       {
-	ip6->field[field + i].value.u32 = pdr->pdi.acl.src_address.address.ip6.as_u32[i];
+	ip6->field[field + i].value.u32 =
+	  clib_net_to_host_u32(pdr->pdi.acl.src_address.address.ip6.as_u32[i]);
 	ip6->field[field + i].mask_range.u32 = ip6_mask(i, pdr->pdi.acl.src_address.mask);
       }
 }
@@ -1243,7 +1232,7 @@ static void ip6_assign_dst_address(struct acl6_rule *ip6,
   else
     for (int i = 0; i < 4; i++)
       ip6->field[field + i] = (struct rte_acl_field){
-	.value.u32 = pdr->pdi.acl.dst_address.address.ip6.as_u32[i],
+	.value.u32 = clib_net_to_host_u32(pdr->pdi.acl.dst_address.address.ip6.as_u32[i]),
 	.mask_range.u32 = ip6_mask(i, pdr->pdi.acl.dst_address.mask),
       };
 }
@@ -1324,8 +1313,8 @@ static int add_wildcard_ip4_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
 
     .field[GTP_TEID_IPV4]    = {.value.u32 = 0, .mask_range.u32 = 0,},
     .field[PROTO_FIELD_IPV4] = {.value.u8 = 0, .mask_range.u8 = 0,},
-    .field[SRC_FIELD_IPV4]   = {.value.u32 = 0,. mask_range.u32 = 0,},
-    .field[DST_FIELD_IPV4]   = {.value.u32 = 0,. mask_range.u32 = 0,},
+    .field[SRC_FIELD_IPV4]   = {.value.u32 = 0, .mask_range.u32 = 0,},
+    .field[DST_FIELD_IPV4]   = {.value.u32 = 0, .mask_range.u32 = 0,},
     .field[SRCP_FIELD_IPV4]  = {.value.u16 = 0, .mask_range.u16 = 0xffff,},
     .field[DSTP_FIELD_IPV4]  = {.value.u16 = 0, .mask_range.u16 = 0xffff,},
   };
