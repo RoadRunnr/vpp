@@ -480,6 +480,7 @@ int vnet_gtpdp_nwi_set_intf_role(u8 * name, u8 intf, u32 sw_if_index, u8 add)
 {
   gtpdp_main_t * gtm = &gtpdp_main;
   gtpdp_nwi_t * nwi;
+  u32 nwi_index;
   uword *p;
 
   if (intf >= INTF_NUM)
@@ -489,12 +490,31 @@ int vnet_gtpdp_nwi_set_intf_role(u8 * name, u8 intf, u32 sw_if_index, u8 add)
   if (!p)
     return VNET_API_ERROR_NO_SUCH_ENTRY;
 
-  nwi = pool_elt_at_index (gtm->nwis, p[0]);
+  nwi_index = p[0];
+  nwi = pool_elt_at_index (gtm->nwis, nwi_index);
 
   if (add)
-    nwi->intf_sw_if_index[intf] = sw_if_index;
+    {
+      if (sw_if_index < vec_len(gtm->nwi_index_by_sw_if_index) &&
+	  gtm->nwi_index_by_sw_if_index[sw_if_index] != ~0)
+	return VNET_API_ERROR_VALUE_EXIST;
+
+      vec_validate_init_empty(gtm->nwi_index_by_sw_if_index, sw_if_index, ~0);
+      vec_validate_init_empty(gtm->intf_type_by_sw_if_index, sw_if_index, ~0);
+      gtm->nwi_index_by_sw_if_index[sw_if_index] = nwi_index;
+      gtm->intf_type_by_sw_if_index[sw_if_index] = intf;
+      nwi->intf_sw_if_index[intf] = sw_if_index;
+    }
   else
-    nwi->intf_sw_if_index[intf] = ~0;
+    {
+      if (sw_if_index > vec_len(gtm->nwi_index_by_sw_if_index) ||
+	  gtm->nwi_index_by_sw_if_index[sw_if_index] != nwi_index)
+	return VNET_API_ERROR_NO_SUCH_ENTRY;
+
+      gtm->nwi_index_by_sw_if_index[sw_if_index] = ~0;
+      gtm->intf_type_by_sw_if_index[sw_if_index] = ~0;
+      nwi->intf_sw_if_index[intf] = ~0;
+    }
 
   return 0;
 }
@@ -767,6 +787,7 @@ static clib_error_t * gtpdp_init (vlib_main_t * vm)
   ret = rte_eal_init (3, argv);
   if (ret < 0)
     return clib_error_return (0, "rte_eal_init returned %d", ret);
+  rte_log_set_global_level (RTE_LOG_DEBUG);
 
   sm->nwi_index_by_name =
     hash_create_vec ( /* initial length */ 32, sizeof (u8), sizeof (uword));

@@ -13,11 +13,8 @@ ip route add 0.0.0.0/0 via 172.20.17.1 host-ens256
 gtpdp nwi create label grx
 gtpdp nwi set gtpu address label grx 172.20.16.48 teid 0x80000000/2
 gtpdp nwi set interface type label grx access interface host-ens224
-gtpdp nwi set interface type label grx sgi interface host-ens256
 gtpdp nwi set interface type label grx cp interface tapcli-0
 gtpdp nwi create label upstream
-gtpdp nwi set interface type label upstream access interface host-ens224
 gtpdp nwi set interface type label upstream sgi interface host-ens256
-gtpdp nwi set interface type label upstream cp interface tapcli-0
 gtpdp nwi create label up.stream.local
 gtpdp sx

@@ -366,7 +366,11 @@ typedef struct
     struct
     {
       u32 session_index;
+      u16 data_offset;
+      u32 teid;
       u32 pdr_idx;
+      u8 flags;
+      u8 src_intf;
     } gtpu;
 
     u32 unused[6];

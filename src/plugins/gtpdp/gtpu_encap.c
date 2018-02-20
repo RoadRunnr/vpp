@@ -302,19 +302,6 @@ gtpdp_encap_inline (vlib_main_t * vm,
 	  far2 = sx_get_far_by_id(r2, pdr2->far_id);
 	  far3 = sx_get_far_by_id(r3, pdr3->far_id);
 
-#define IS_DL(_pdr, _far)			\
-	  ((_pdr)->pdi.src_intf == SRC_INTF_CORE || (_far)->forward.dst_intf == DST_INTF_ACCESS)
-#define IS_UL(_pdr, _far)			\
-	  ((_pdr)->pdi.src_intf == SRC_INTF_ACCESS || (_far)->forward.dst_intf == DST_INTF_CORE)
-
-	  process_urrs(vm, r0, pdr0, b0, IS_DL(pdr0, far0), IS_UL(pdr0, far0));
-	  process_urrs(vm, r1, pdr1, b1, IS_DL(pdr1, far1), IS_UL(pdr1, far1));
-	  process_urrs(vm, r2, pdr2, b2, IS_DL(pdr2, far2), IS_UL(pdr2, far2));
-	  process_urrs(vm, r3, pdr3, b3, IS_DL(pdr3, far3), IS_UL(pdr3, far3));
-
-#undef IS_DL
-#undef IS_UL
-
 	  peer0 = pool_elt_at_index (gtm->peers, far0->forward.peer_idx);
 	  peer1 = pool_elt_at_index (gtm->peers, far1->forward.peer_idx);
 	  peer2 = pool_elt_at_index (gtm->peers, far2->forward.peer_idx);
@@ -672,16 +659,6 @@ gtpdp_encap_inline (vlib_main_t * vm,
 	  /* TODO: this should be optimized */
 	  pdr0 = r0->pdr + vnet_buffer (b0)->gtpu.pdr_idx;
 	  far0 = sx_get_far_by_id(r0, pdr0->far_id);
-
-#define IS_DL(_pdr, _far)						\
-	  ((_pdr)->pdi.src_intf == SRC_INTF_CORE || (_far)->forward.dst_intf == DST_INTF_ACCESS)
-#define IS_UL(_pdr, _far)			\
-	  ((_pdr)->pdi.src_intf == SRC_INTF_ACCESS || (_far)->forward.dst_intf == DST_INTF_CORE)
-
-	  process_urrs(vm, r0, pdr0, b0, IS_DL(pdr0, far0), IS_UL(pdr0, far0));
-
-#undef IS_DL
-#undef IS_UL
 
 	  peer0 = pool_elt_at_index (gtm->peers, far0->forward.peer_idx);
 

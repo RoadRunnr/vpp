@@ -41,6 +41,7 @@ gtpdp_plugin_la_SOURCES = \
   gtpdp/gtpu_encap.c \
   gtpdp/gtpu_decap.c \
   gtpdp/gtpdp_if_input.c \
+  gtpdp/gtpdp_classify.c \
   gtpdp/gtpdp.c \
   gtpdp/gtpdp_api.c \
   gtpdp/gtpdp_sx.c \

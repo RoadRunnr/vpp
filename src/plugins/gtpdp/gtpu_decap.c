@@ -26,6 +26,20 @@
 vlib_node_registration_t gtpu4_input_node;
 vlib_node_registration_t gtpu6_input_node;
 
+#define foreach_gtpu_input_next        \
+  _(DROP, "error-drop")		       \
+  _(IP4_CLASSIFY, "gtpdp-ip4-classify")	\
+  _(IP6_CLASSIFY, "gtpdp-ip6-classify")	\
+  _(ERROR_INDICATION, "gtp-error-indication")
+
+typedef enum
+{
+#define _(s,n) GTPU_INPUT_NEXT_##s,
+  foreach_gtpu_input_next
+#undef _
+  GTPU_INPUT_N_NEXT,
+} gtpu_input_next_t;
+
 typedef struct {
   u32 next_index;
   u32 session_index;
@@ -97,10 +111,11 @@ gtpu_input (vlib_main_t * vm,
 	  gtpu_header_t * gtpu0, * gtpu1;
 	  u32 gtpu_hdr_len0 = 0, gtpu_hdr_len1 =0 ;
 	  u32 session_index0, session_index1;
-	  gtpdp_session_t * t0, * t1, * mt0 = NULL, * mt1 = NULL;
+	  gtpdp_session_t * t0, * t1;
 	  gtpu4_tunnel_key_t key4_0, key4_1;
 	  u32 error0, error1;
 	  u32 sw_if_index0, sw_if_index1, len0, len1;
+	  u16 hdr_len0, hdr_len1;
 
 	  /* Prefetch next iteration. */
 	  {
@@ -131,6 +146,11 @@ gtpu_input (vlib_main_t * vm,
 	  /* udp leaves current_data pointing at the gtpu header */
 	  gtpu0 = vlib_buffer_get_current (b0);
 	  gtpu1 = vlib_buffer_get_current (b1);
+	  hdr_len0 = is_ip4 ? sizeof(*ip4_0) : sizeof(*ip6_0);
+	  hdr_len0 += sizeof(udp_header_t);
+	  hdr_len1 = is_ip4 ? sizeof(*ip4_1) : sizeof(*ip6_1);
+	  hdr_len1 += sizeof(udp_header_t);
+
 	  if (is_ip4) {
 	    vlib_buffer_advance
 	      (b0, -(word)(sizeof(udp_header_t)+sizeof(ip4_header_t)));
@@ -145,19 +165,6 @@ gtpu_input (vlib_main_t * vm,
 	      (b1, -(word)(sizeof(udp_header_t)+sizeof(ip6_header_t)));
 	    ip6_0 = vlib_buffer_get_current (b0);
 	    ip6_1 = vlib_buffer_get_current (b1);
-	  }
-
-	  /* pop (ip, udp, gtpu) */
-	  if (is_ip4) {
-	    vlib_buffer_advance
-	      (b0, sizeof(*ip4_0)+sizeof(udp_header_t));
-	    vlib_buffer_advance
-	      (b1, sizeof(*ip4_1)+sizeof(udp_header_t));
-	  } else {
-	    vlib_buffer_advance
-	      (b0, sizeof(*ip6_0)+sizeof(udp_header_t));
-	    vlib_buffer_advance
-	      (b1, sizeof(*ip6_1)+sizeof(udp_header_t));
 	  }
 
 	  session_index0 = ~0;
@@ -253,16 +260,25 @@ gtpu_input (vlib_main_t * vm,
 	      gtpu_hdr_len0 = sizeof(gtpu_header_t) - 4;
 	    }
 
-	  /* Pop gtpu header */
-	  vlib_buffer_advance (b0, gtpu_hdr_len0);
+	  hdr_len0 += gtpu_hdr_len0;
+	  vnet_buffer (b0)->gtpu.data_offset = hdr_len0;
+	  vnet_buffer (b0)->gtpu.teid = clib_net_to_host_u32(gtpu0->teid);
+	  vnet_buffer (b0)->gtpu.session_index = session_index0;
+	  vnet_buffer (b0)->gtpu.flags = is_ip4 ? BUFFER_GTP_UDP_IP4 : BUFFER_GTP_UDP_IP6;
 
-	  next0 = is_ip4 ? GTPU_INPUT_NEXT_IP4_INPUT : GTPU_INPUT_NEXT_IP6_INPUT;
+	  /* inner IP header */
+	  ip4_0 = vlib_buffer_get_current (b0) + hdr_len0;
+	  next0 = ((ip4_0->ip_version_and_header_length & 0xF0) == 0x40) ?
+	    GTPU_INPUT_NEXT_IP4_CLASSIFY : GTPU_INPUT_NEXT_IP6_CLASSIFY;
+
+	   vnet_buffer (b0)->gtpu.src_intf =
+		   gtm->intf_type_by_sw_if_index[vnet_buffer(b0)->sw_if_index[VLIB_RX]];
+
 	  sw_if_index0 = t0->sw_if_index;
-	  len0 = vlib_buffer_length_in_chain (vm, b0);
+	  len0 = vlib_buffer_length_in_chain (vm, b0) - hdr_len0;
 
 	  /* Set packet input sw_if_index to unicast GTPU tunnel for learning */
 	  vnet_buffer(b0)->sw_if_index[VLIB_RX] = sw_if_index0;
-	  sw_if_index0 = (mt0) ? mt0->sw_if_index : sw_if_index0;
 
 	  pkts_decapsulated ++;
 	  stats_n_packets += 1;
@@ -384,16 +400,25 @@ gtpu_input (vlib_main_t * vm,
 	      gtpu_hdr_len1 = sizeof(gtpu_header_t) - 4;
 	    }
 
-	  /* Pop gtpu header */
-	  vlib_buffer_advance (b1, gtpu_hdr_len1);
+	  hdr_len1 += gtpu_hdr_len1;
+	  vnet_buffer (b1)->gtpu.data_offset = hdr_len1;
+	  vnet_buffer (b1)->gtpu.teid = clib_net_to_host_u32(gtpu1->teid);
+	  vnet_buffer (b1)->gtpu.session_index = session_index1;
+	  vnet_buffer (b1)->gtpu.flags = is_ip4 ? BUFFER_GTP_UDP_IP4 : BUFFER_GTP_UDP_IP6;
 
-	  next1 = is_ip4 ? GTPU_INPUT_NEXT_IP4_INPUT : GTPU_INPUT_NEXT_IP6_INPUT;
+	  /* inner IP header */
+	  ip4_1 = vlib_buffer_get_current (b1) + hdr_len1;
+	  next1 = ((ip4_1->ip_version_and_header_length & 0xF0) == 0x40) ?
+	    GTPU_INPUT_NEXT_IP4_CLASSIFY : GTPU_INPUT_NEXT_IP6_CLASSIFY;
+
+	  vnet_buffer (b1)->gtpu.src_intf =
+		  gtm->intf_type_by_sw_if_index[vnet_buffer(b1)->sw_if_index[VLIB_RX]];
+
 	  sw_if_index1 = t1->sw_if_index;
-	  len1 = vlib_buffer_length_in_chain (vm, b1);
+	  len1 = vlib_buffer_length_in_chain (vm, b1) - hdr_len1;
 
 	  /* Set packet input sw_if_index to unicast GTPU tunnel for learning */
 	  vnet_buffer(b1)->sw_if_index[VLIB_RX] = sw_if_index1;
-	  sw_if_index1 = (mt1) ? mt1->sw_if_index : sw_if_index1;
 
 	  pkts_decapsulated ++;
 	  stats_n_packets += 1;
@@ -443,10 +468,11 @@ gtpu_input (vlib_main_t * vm,
 	  gtpu_header_t * gtpu0;
 	  u32 gtpu_hdr_len0 = 0;
 	  u32 session_index0;
-	  gtpdp_session_t * t0, * mt0 = NULL;
+	  gtpdp_session_t * t0;
 	  gtpu4_tunnel_key_t key4_0;
 	  u32 error0;
 	  u32 sw_if_index0, len0;
+	  u16 hdr_len0;
 
 	  bi0 = from[0];
 	  to_next[0] = bi0;
@@ -459,6 +485,9 @@ gtpu_input (vlib_main_t * vm,
 
 	  /* udp leaves current_data pointing at the gtpu header */
 	  gtpu0 = vlib_buffer_get_current (b0);
+	  hdr_len0 = is_ip4 ? sizeof(*ip4_0) : sizeof(*ip6_0);
+	  hdr_len0 += sizeof(udp_header_t);
+
 	  if (is_ip4) {
 	    vlib_buffer_advance
 	      (b0, -(word)(sizeof(udp_header_t)+sizeof(ip4_header_t)));
@@ -467,15 +496,6 @@ gtpu_input (vlib_main_t * vm,
 	    vlib_buffer_advance
 	      (b0, -(word)(sizeof(udp_header_t)+sizeof(ip6_header_t)));
 	    ip6_0 = vlib_buffer_get_current (b0);
-	  }
-
-	  /* pop (ip, udp) */
-	  if (is_ip4) {
-	    vlib_buffer_advance
-	      (b0, sizeof(*ip4_0)+sizeof(udp_header_t));
-	  } else {
-	    vlib_buffer_advance
-	      (b0, sizeof(*ip6_0)+sizeof(udp_header_t));
 	  }
 
 	  session_index0 = ~0;
@@ -566,16 +586,25 @@ gtpu_input (vlib_main_t * vm,
 	      gtpu_hdr_len0 = sizeof(gtpu_header_t) - 4;
 	    }
 
-	  /* Pop gtpu header */
-	  vlib_buffer_advance (b0, gtpu_hdr_len0);
+	  hdr_len0 += gtpu_hdr_len0;
+	  vnet_buffer (b0)->gtpu.data_offset = hdr_len0;
+	  vnet_buffer (b0)->gtpu.teid = clib_net_to_host_u32(gtpu0->teid);
+	  vnet_buffer (b0)->gtpu.session_index = session_index0;
+	  vnet_buffer (b0)->gtpu.flags = (is_ip4) ? BUFFER_GTP_UDP_IP4 : BUFFER_GTP_UDP_IP6;
 
-	  next0 = is_ip4 ? GTPU_INPUT_NEXT_IP4_INPUT : GTPU_INPUT_NEXT_IP6_INPUT;
+	  /* inner IP header */
+	  ip4_0 = vlib_buffer_get_current (b0) + hdr_len0;
+	  next0 = ((ip4_0->ip_version_and_header_length & 0xF0) == 0x40) ?
+	    GTPU_INPUT_NEXT_IP4_CLASSIFY : GTPU_INPUT_NEXT_IP6_CLASSIFY;
+
+	  vnet_buffer (b0)->gtpu.src_intf =
+		  gtm->intf_type_by_sw_if_index[vnet_buffer(b0)->sw_if_index[VLIB_RX]];
+
 	  sw_if_index0 = t0->sw_if_index;
-	  len0 = vlib_buffer_length_in_chain (vm, b0);
+	  len0 = vlib_buffer_length_in_chain (vm, b0) - hdr_len0;
 
 	  /* Set packet input sw_if_index to unicast GTPU tunnel for learning */
 	  vnet_buffer(b0)->sw_if_index[VLIB_RX] = sw_if_index0;
-	  sw_if_index0 = (mt0) ? mt0->sw_if_index : sw_if_index0;
 
 	  pkts_decapsulated ++;
 	  stats_n_packets += 1;

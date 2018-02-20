@@ -30,6 +30,20 @@
 
 #include "pfcp.h"
 
+#define BUFFER_HAS_GTP_HDR  (1<<0)
+#define BUFFER_HAS_UDP_HDR  (1<<1)
+#define BUFFER_HAS_IP4_HDR  (1<<2)
+#define BUFFER_HAS_IP6_HDR  (1<<3)
+#define BUFFER_HDR_MASK     (BUFFER_HAS_GTP_HDR | BUFFER_HAS_UDP_HDR |	\
+			     BUFFER_HAS_IP4_HDR | BUFFER_HAS_IP6_HDR)
+#define BUFFER_GTP_UDP_IP4  (BUFFER_HAS_GTP_HDR | BUFFER_HAS_UDP_HDR |	\
+			     BUFFER_HAS_IP4_HDR)
+#define BUFFER_GTP_UDP_IP6  (BUFFER_HAS_GTP_HDR | BUFFER_HAS_UDP_HDR |	\
+			     BUFFER_HAS_IP6_HDR)
+#define BUFFER_UDP_IP4      (BUFFER_HAS_UDP_HDR | BUFFER_HAS_IP4_HDR)
+#define BUFFER_UDP_IP6      (BUFFER_HAS_UDP_HDR | BUFFER_HAS_IP6_HDR)
+
+
 /**
  *		Bits
  * Octets	8	7	6	5	4	3	2	1
@@ -349,19 +363,6 @@ typedef struct {
   struct rcu_head rcu_head;
 } gtpdp_session_t;
 
-#define foreach_gtpu_input_next        \
-  _(DROP, "error-drop")		       \
-  _(IP4_INPUT, "ip4-input")	       \
-  _(IP6_INPUT, "ip6-input" )	       \
-  _(ERROR_INDICATION, "gtp-error-indication")
-
-typedef enum
-{
-#define _(s,n) GTPU_INPUT_NEXT_##s,
-  foreach_gtpu_input_next
-#undef _
-    GTPU_INPUT_N_NEXT,
-} gtpu_input_next_t;
 
 typedef enum
 {
@@ -428,6 +429,7 @@ typedef struct {
   gtpdp_nwi_t *nwis;
   uword *nwi_index_by_name;
   uword *nwi_index_by_sw_if_index;
+  u8 *intf_type_by_sw_if_index;
 
   /* vector of encap tunnel instances */
   gtpdp_session_t *sessions;

@@ -47,22 +47,21 @@ typedef enum {
     GTPDP_IF_INPUT_N_ERROR,
 } gtpdp_if_input_error_t;
 
-#define foreach_gtpdp_if_input_next	\
-  _(DROP, "error-drop")			\
-  _(GTPDP4_ENCAP, "gtpdp4-encap")       \
-  _(GTPDP6_ENCAP, "gtpdp6-encap")
+#define foreach_gtpdp_if_input_next		\
+  _(DROP, "error-drop")				\
+  _(IP4_CLASSIFY, "gtpdp-ip4-classify")		\
+  _(IP6_CLASSIFY, "gtpdp-ip6-classify")
 
 typedef enum {
-  GTPDP_IF_INPUT_NEXT_DROP,
-  GTPDP_IF_INPUT_NEXT_GTPDP4_ENCAP,
-  GTPDP_IF_INPUT_NEXT_GTPDP6_ENCAP,
+#define _(s,n) GTPDP_IF_INPUT_NEXT_##s,
+  foreach_gtpdp_if_input_next
+#undef _
   GTPDP_IF_INPUT_N_NEXT,
 } gtpdp_if_input_next_t;
 
 typedef struct {
   u32 session_index;
   u64 cp_f_seid;
-  u32 pdr_id;
   u8 packet_data[64 - 1 * sizeof (u32)];
 } gtpdp_if_input_trace_t;
 
@@ -74,8 +73,8 @@ u8 * format_gtpdp_if_input_trace (u8 * s, va_list * args)
     = va_arg (*args, gtpdp_if_input_trace_t *);
   u32 indent = format_get_indent (s);
 
-  s = format (s, "gtpdp_session%d seid %d pdr %d\n%U%U",
-	      t->session_index, t->cp_f_seid, t->pdr_id,
+  s = format (s, "gtpdp_session%d seid %d \n%U%U",
+	      t->session_index, t->cp_f_seid,
 	      format_white_space, indent,
 	      format_ip4_header, t->packet_data, sizeof (t->packet_data));
   return s;
@@ -97,15 +96,10 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
   u32 sw_if_index = 0;
   u32 next = 0;
   vnet_hw_interface_t * hi;
-  gtpdp_session_t * sess = NULL;
   u32 sidx = 0;
+  u8 intf_type = ~0;
   u32 len;
-  struct rules *active;
   ip4_header_t *ip4;
-  ip6_header_t *ip6;
-  struct rte_acl_ctx *acl;
-  uint32_t results[1]; /* make classify by 4 categories. */
-  const u8 *data[4];
 
   next_index = node->cached_next_index;
   stats_sw_if_index = node->runtime_data[0];
@@ -113,8 +107,6 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 
   while (n_left_from > 0)
     {
-      gtpdp_pdr_t * pdr = NULL;
-      gtpdp_far_t * far = NULL;
       u32 n_left_to_next;
       vlib_buffer_t * b;
       u32 bi;
@@ -137,66 +129,25 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 	  sw_if_index = vnet_buffer(b)->sw_if_index[VLIB_TX];
 	  hi = vnet_get_sup_hw_interface (vnm, sw_if_index);
 	  sidx = gtm->session_index_by_sw_if_index[sw_if_index];
-	  sess = pool_elt_at_index (gtm->sessions, sidx);
+	  intf_type = gtm->intf_type_by_sw_if_index[vnet_buffer(b)->sw_if_index[VLIB_RX]];
 
-	  clib_warning("Hi: %p, Session %p", hi, sess);
+	  clib_warning("Hi: %p, Session %d", hi, sidx);
 
-	  next = GTPDP_IF_INPUT_NEXT_DROP;
-	  active = sx_get_rules(sess, SX_ACTIVE);
-
+	  vnet_buffer (b)->gtpu.session_index = sidx;
+	  vnet_buffer (b)->gtpu.data_offset = 0;
+	  vnet_buffer (b)->gtpu.src_intf = intf_type;
+	  vnet_buffer (b)->gtpu.teid = 0;
 	  ip4 = (ip4_header_t *)vlib_buffer_get_current(b);
+
 	  if ((ip4->ip_version_and_header_length & 0xF0) == 0x40)
 	    {
-	      acl = active->sdf[DL_SDF].ip4;
-	      if (PREDICT_TRUE (acl != NULL))
-		{
-		  data[0] = vlib_buffer_get_current(b);
-		  rte_acl_classify(acl, data, results, 1, 4);
-		  clib_warning("Ctx: %p, src: %U, dst %U\n",
-			       acl,
-			       format_ip4_address, &ip4->src_address,
-			       format_ip4_address, &ip4->dst_address);
-		  clib_warning("result: %d\n", results[0]);
-		  if (PREDICT_TRUE (results[0] != 0))
-		    {
-		      vnet_buffer (b)->gtpu.session_index = sidx;
-		      vnet_buffer (b)->gtpu.pdr_idx = results[0] - 1;
-
-		      /* TODO: this should be optimized */
-		      pdr = active->pdr + results[0] - 1;
-		      far = sx_get_far_by_id(active, pdr->far_id);
-
-		      next = ip46_address_is_ip4(&far->forward.addr) ?
-			GTPDP_IF_INPUT_NEXT_GTPDP4_ENCAP : GTPDP_IF_INPUT_NEXT_GTPDP6_ENCAP;
-		    }
-		}
+	      next = GTPDP_IF_INPUT_NEXT_IP4_CLASSIFY;
+	      vnet_buffer (b)->gtpu.flags = BUFFER_HAS_IP4_HDR;
 	    }
 	  else
 	    {
-	      ip6 = (ip6_header_t *)vlib_buffer_get_current(b);
-	      acl = active->sdf[DL_SDF].ip6;
-	      if (PREDICT_TRUE (acl != NULL))
-		{
-		  data[0] = vlib_buffer_get_current(b);
-		  rte_acl_classify(acl, data, results, 1, 1);
-		  clib_warning("Ctx: %p, src: %U, dst %U\n",
-			       acl,
-			       format_ip6_address, &ip6->src_address,
-			       format_ip6_address, &ip6->dst_address);
-		  clib_warning("result: %d\n", results[0]);
-		  if (PREDICT_TRUE (results[0] != 0))
-		    {
-		      vnet_buffer (b)->gtpu.session_index = sidx;
-		      vnet_buffer (b)->gtpu.pdr_idx = results[0] - 1;
-
-		      /* TODO: this should be optimized */
-		      pdr = active->pdr + results[0] - 1;
-		      far = sx_get_far_by_id(active, pdr->far_id);
-
-		      next = ip46_address_is_ip4(&far->forward.addr) ?
-			GTPDP_IF_INPUT_NEXT_GTPDP4_ENCAP : GTPDP_IF_INPUT_NEXT_GTPDP6_ENCAP;
-		    }
-		}
+	      next = GTPDP_IF_INPUT_NEXT_IP6_CLASSIFY;
+	      vnet_buffer (b)->gtpu.flags = BUFFER_HAS_IP6_HDR;
 	    }
 
 	  len = vlib_buffer_length_in_chain (vm, b);
@@ -223,11 +174,11 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 
 	  if (PREDICT_FALSE(b->flags & VLIB_BUFFER_IS_TRACED))
 	    {
+	      gtpdp_session_t * sess = pool_elt_at_index (gtm->sessions, sidx);
 	      gtpdp_if_input_trace_t *tr =
 		vlib_add_trace (vm, node, b, sizeof (*tr));
 	      tr->session_index = sidx;
 	      tr->cp_f_seid = sess->cp_f_seid;
-	      tr->pdr_id = pdr ? pdr->id : ~0;
 	      clib_memcpy (tr->packet_data, vlib_buffer_get_current (b),
 			   sizeof (tr->packet_data));
 	    }
