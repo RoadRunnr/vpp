@@ -62,39 +62,31 @@ static void sx_acl_free(gtpdp_acl_ctx_t *ctx);
 /* DPDK ACL defines */
 
 enum {
-  GTP_TEID_IPV4,
   PROTO_FIELD_IPV4,
   SRC_FIELD_IPV4,
   DST_FIELD_IPV4,
   SRCP_FIELD_IPV4,
-  DSTP_FIELD_IPV4
+  DSTP_FIELD_IPV4,
+  GTP_TEID_IPV4
 };
 
 enum {
-  RTE_ACL_IPV4_GTP_TEID,
   RTE_ACL_IPV4VLAN_PROTO,
   RTE_ACL_IPV4VLAN_VLAN,
   RTE_ACL_IPV4VLAN_SRC,
   RTE_ACL_IPV4VLAN_DST,
-  RTE_ACL_IPV4VLAN_PORTS
+  RTE_ACL_IPV4VLAN_PORTS,
+  RTE_ACL_IPV4_GTP_TEID
 };
 
 struct rte_acl_field_def ipv4_defs[] = {
-  [GTP_TEID_IPV4] =
-  {
-    .type = RTE_ACL_FIELD_TYPE_MASK,
-    .size = sizeof(u32),
-    .field_index = GTP_TEID_IPV4,
-    .input_index = RTE_ACL_IPV4_GTP_TEID,
-    .offset = 0,
-  },
   [PROTO_FIELD_IPV4] =
   {
     .type = RTE_ACL_FIELD_TYPE_BITMASK,
     .size = sizeof(uint8_t),
     .field_index = PROTO_FIELD_IPV4,
     .input_index = RTE_ACL_IPV4VLAN_PROTO,
-    .offset = sizeof(u32) + offsetof(ip4_header_t, protocol),
+    .offset = offsetof(ip4_header_t, protocol),
   },
   [SRC_FIELD_IPV4] =
   {
@@ -102,7 +94,7 @@ struct rte_acl_field_def ipv4_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = SRC_FIELD_IPV4,
     .input_index = RTE_ACL_IPV4VLAN_SRC,
-    .offset = sizeof(u32) + offsetof(ip4_header_t, src_address),
+    .offset = offsetof(ip4_header_t, src_address),
   },
   [DST_FIELD_IPV4] =
   {
@@ -110,7 +102,7 @@ struct rte_acl_field_def ipv4_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = DST_FIELD_IPV4,
     .input_index = RTE_ACL_IPV4VLAN_DST,
-    .offset = sizeof(u32) + offsetof(ip4_header_t, dst_address),
+    .offset = offsetof(ip4_header_t, dst_address),
   },
   [SRCP_FIELD_IPV4] =
   {
@@ -118,7 +110,7 @@ struct rte_acl_field_def ipv4_defs[] = {
     .size = sizeof(uint16_t),
     .field_index = SRCP_FIELD_IPV4,
     .input_index = RTE_ACL_IPV4VLAN_PORTS,
-    .offset = sizeof(u32) + sizeof(ip4_header_t),
+    .offset = sizeof(ip4_header_t),
   },
   [DSTP_FIELD_IPV4] =
   {
@@ -126,14 +118,21 @@ struct rte_acl_field_def ipv4_defs[] = {
     .size = sizeof(uint16_t),
     .field_index = DSTP_FIELD_IPV4,
     .input_index = RTE_ACL_IPV4VLAN_PORTS,
-    .offset = sizeof(u32) + sizeof(ip4_header_t) + sizeof(uint16_t),
+    .offset = sizeof(ip4_header_t) + sizeof(uint16_t),
   },
+  [GTP_TEID_IPV4] =
+  {
+    .type = RTE_ACL_FIELD_TYPE_BITMASK,
+    .size = sizeof(u32),
+    .field_index = GTP_TEID_IPV4,
+    .input_index = RTE_ACL_IPV4_GTP_TEID,
+    .offset = sizeof(ip4_header_t) + sizeof(udp_header_t),
+  }
 };
 
 RTE_ACL_RULE_DEF(acl4_rule, RTE_DIM(ipv4_defs));
 
 enum {
-  GTP_TEID_IPV6,
   PROTO_FIELD_IPV6,
   SRC1_FIELD_IPV6,
   SRC2_FIELD_IPV6,
@@ -144,25 +143,18 @@ enum {
   DST3_FIELD_IPV6,
   DST4_FIELD_IPV6,
   SRCP_FIELD_IPV6,
-  DSTP_FIELD_IPV6
+  DSTP_FIELD_IPV6,
+  GTP_TEID_IPV6
 };
 
 struct rte_acl_field_def ipv6_defs[] = {
-  [GTP_TEID_IPV6] =
-  {
-    .type = RTE_ACL_FIELD_TYPE_MASK,
-    .size = sizeof(u32),
-    .field_index = GTP_TEID_IPV6,
-    .input_index = GTP_TEID_IPV6,
-    .offset = 0,
-  },
   [PROTO_FIELD_IPV6] =
   {
     .type = RTE_ACL_FIELD_TYPE_BITMASK,
     .size = sizeof(uint8_t),
     .field_index = PROTO_FIELD_IPV6,
     .input_index = PROTO_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, protocol),
+    .offset = offsetof(ip6_header_t, protocol),
   },
   [SRC1_FIELD_IPV6] =
   {
@@ -170,7 +162,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = SRC1_FIELD_IPV6,
     .input_index = SRC1_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, src_address.as_u32[0]),
+    .offset = offsetof(ip6_header_t, src_address.as_u32[0]),
   },
   [SRC2_FIELD_IPV6] =
   {
@@ -178,7 +170,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = SRC2_FIELD_IPV6,
     .input_index = SRC2_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, src_address.as_u32[1]),
+    .offset = offsetof(ip6_header_t, src_address.as_u32[1]),
   },
   [SRC3_FIELD_IPV6] =
   {
@@ -186,7 +178,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = SRC3_FIELD_IPV6,
     .input_index = SRC3_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, src_address.as_u32[2]),
+    .offset = offsetof(ip6_header_t, src_address.as_u32[2]),
   },
   [SRC4_FIELD_IPV6] =
   {
@@ -194,7 +186,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = SRC4_FIELD_IPV6,
     .input_index = SRC4_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, src_address.as_u32[3]),
+    .offset = offsetof(ip6_header_t, src_address.as_u32[3]),
   },
   [DST1_FIELD_IPV6] =
   {
@@ -202,7 +194,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = DST1_FIELD_IPV6,
     .input_index = DST1_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, dst_address.as_u32[0]),
+    .offset = offsetof(ip6_header_t, dst_address.as_u32[0]),
   },
   [DST2_FIELD_IPV6] =
   {
@@ -210,7 +202,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = DST2_FIELD_IPV6,
     .input_index = DST2_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, dst_address.as_u32[1]),
+    .offset = offsetof(ip6_header_t, dst_address.as_u32[1]),
   },
   [DST3_FIELD_IPV6] =
   {
@@ -218,7 +210,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = DST3_FIELD_IPV6,
     .input_index = DST3_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, dst_address.as_u32[2]),
+    .offset = offsetof(ip6_header_t, dst_address.as_u32[2]),
   },
   [DST4_FIELD_IPV6] =
   {
@@ -226,7 +218,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint32_t),
     .field_index = DST4_FIELD_IPV6,
     .input_index = DST4_FIELD_IPV6,
-    .offset = sizeof(u32) + offsetof(ip6_header_t, dst_address.as_u32[3]),
+    .offset = offsetof(ip6_header_t, dst_address.as_u32[3]),
   },
   [SRCP_FIELD_IPV6] =
   {
@@ -234,7 +226,7 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint16_t),
     .field_index = SRCP_FIELD_IPV6,
     .input_index = SRCP_FIELD_IPV6,
-    .offset = sizeof(u32) + sizeof(ip6_header_t),
+    .offset = sizeof(ip6_header_t),
   },
   [DSTP_FIELD_IPV6] =
   {
@@ -242,7 +234,15 @@ struct rte_acl_field_def ipv6_defs[] = {
     .size = sizeof(uint16_t),
     .field_index = DSTP_FIELD_IPV6,
     .input_index = SRCP_FIELD_IPV6,
-    .offset = sizeof(u32) + sizeof(ip6_header_t) + sizeof(uint16_t),
+    .offset = sizeof(ip6_header_t) + sizeof(uint16_t),
+  },
+  [GTP_TEID_IPV6] =
+  {
+    .type = RTE_ACL_FIELD_TYPE_BITMASK,
+    .size = sizeof(u32),
+    .field_index = GTP_TEID_IPV6,
+    .input_index = GTP_TEID_IPV6,
+    .offset = sizeof(ip6_header_t) + sizeof(udp_header_t),
   }
 };
 

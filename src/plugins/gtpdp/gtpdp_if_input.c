@@ -150,7 +150,7 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 	      acl = active->sdf[DL_SDF].ip4;
 	      if (PREDICT_TRUE (acl != NULL))
 		{
-		  data[0] = vlib_buffer_get_current(b) - sizeof(u32);
+		  data[0] = vlib_buffer_get_current(b);
 		  rte_acl_classify(acl, data, results, 1, 4);
 		  clib_warning("Ctx: %p, src: %U, dst %U\n",
 			       acl,
@@ -177,7 +177,7 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 	      acl = active->sdf[DL_SDF].ip6;
 	      if (PREDICT_TRUE (acl != NULL))
 		{
-		  data[0] = vlib_buffer_get_current(b) - sizeof(u32);
+		  data[0] = vlib_buffer_get_current(b);
 		  rte_acl_classify(acl, data, results, 1, 1);
 		  clib_warning("Ctx: %p, src: %U, dst %U\n",
 			       acl,
