@@ -276,14 +276,14 @@ gtpdp_encap_inline (vlib_main_t * vm,
 	  flow_hash3 = vnet_l2_compute_flow_hash (b3);
 
 	  /* Get next node index and adj index from tunnel next_dpo */
-	  sw_if_index0 = vnet_buffer(b0)->sw_if_index[VLIB_TX];
-	  sw_if_index1 = vnet_buffer(b1)->sw_if_index[VLIB_TX];
-	  sw_if_index2 = vnet_buffer(b2)->sw_if_index[VLIB_TX];
-	  sw_if_index3 = vnet_buffer(b3)->sw_if_index[VLIB_TX];
 	  s0 = &gtm->sessions[vnet_buffer (b0)->gtpu.session_index];
 	  s1 = &gtm->sessions[vnet_buffer (b1)->gtpu.session_index];
 	  s2 = &gtm->sessions[vnet_buffer (b2)->gtpu.session_index];
 	  s3 = &gtm->sessions[vnet_buffer (b3)->gtpu.session_index];
+	  sw_if_index0 = s0->sw_if_index;
+	  sw_if_index1 = s1->sw_if_index;
+	  sw_if_index2 = s2->sw_if_index;
+	  sw_if_index3 = s3->sw_if_index;
 
 	  r0 = sx_get_rules(s0, SX_ACTIVE);
 	  r1 = sx_get_rules(s1, SX_ACTIVE);
@@ -651,8 +651,8 @@ gtpdp_encap_inline (vlib_main_t * vm,
 	  flow_hash0 = vnet_l2_compute_flow_hash(b0);
 
 	  /* Get next node index and adj index from tunnel next_dpo */
-	  sw_if_index0 = vnet_buffer(b0)->sw_if_index[VLIB_TX];
 	  s0 = &gtm->sessions[vnet_buffer (b0)->gtpu.session_index];
+	  sw_if_index0 = s0->sw_if_index;
 
 	  r0 = sx_get_rules(s0, SX_ACTIVE);
 
