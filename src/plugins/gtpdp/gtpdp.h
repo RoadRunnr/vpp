@@ -348,6 +348,9 @@ typedef struct {
     gtpu4_tunnel_key_t *v4_teid;
     gtpu6_tunnel_key_t *v6_teid;
 
+    uword *v4_wildcard_teid;
+    uword *v6_wildcard_teid;
+
     u16 * send_end_marker;
   } rules[2];
 #define SX_ACTIVE  0

@@ -748,6 +748,10 @@ static void sx_free_rules(gtpdp_session_t *sx, int rule)
   vec_free(rules->vrf_ip);
   vec_free(rules->v4_teid);
   vec_free(rules->v6_teid);
+
+  hash_free(rules->v4_wildcard_teid);
+  hash_free(rules->v6_wildcard_teid);
+
   memset(rules, 0, sizeof(*rules));
 }
 
@@ -1303,6 +1307,36 @@ static int add_ip6_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
   return 0;
 }
 
+static int add_wildcard_teid(struct rules *rules, const pfcp_f_teid_t teid, u32 pdr_id)
+{
+  if (teid.flags & F_TEID_V4)
+    {
+      gtpu4_tunnel_key_t v4_teid;
+
+      v4_teid.dst = teid.ip4.as_u32;
+      v4_teid.teid = teid.teid;
+
+      hash_set (rules->v4_wildcard_teid, v4_teid.as_u64, pdr_id);
+    }
+
+  if (teid.flags & F_TEID_V6)
+    {
+      gtpu6_tunnel_key_t v6_teid;
+
+      v6_teid.dst = teid.ip6;
+      v6_teid.teid = teid.teid;
+
+      if (!rules->v6_wildcard_teid)
+	rules->v6_wildcard_teid = hash_create_mem (0,
+						   sizeof (gtpu6_tunnel_key_t),
+						   sizeof (uword));
+
+      hash_set_mem_alloc (&rules->v6_wildcard_teid, &v6_teid, pdr_id);
+    }
+
+  return 0;
+}
+
 static int add_wildcard_ip4_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
 				u32 pdr_idx)
 {
@@ -1594,6 +1628,10 @@ static int build_sx_sdf(gtpdp_session_t *sx)
 
       if (!(pdr->pdi.fields & F_PDI_SDF_FILTER))
 	{
+	  if ((pdr->pdi.fields & F_PDI_LOCAL_F_TEID) &&
+	      !(pdr->pdi.fields & F_PDI_UE_IP_ADDR))
+	    add_wildcard_teid(pending, pdr->pdi.teid, pdr->id);
+
 	  if (pdr->pdi.src_intf != SRC_INTF_ACCESS &&
 	      !(pdr->pdi.fields & F_PDI_UE_IP_ADDR))
 	    /* wildcard DL SDF only if UE IP is set */

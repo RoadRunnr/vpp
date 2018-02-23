@@ -124,7 +124,6 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
       u8 direction;
       u8 * pl;
       u32 bi;
-      u32 save, *teid;
 
       vlib_get_next_frame (vm, node, next_index,
 			   to_next, n_left_to_next);
@@ -139,14 +138,6 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	  n_left_to_next -= 1;
 
 	  b = vlib_get_buffer (vm, bi);
-	  pl = vlib_buffer_get_current(b) + vnet_buffer (b)->gtpu.data_offset;
-	  data[0] = pl;
-
-	  /* append TEID to data */
-	  teid = (u32 *)(pl + (is_ip4 ? sizeof(ip4_header_t) : sizeof(ip6_header_t))
-			 + sizeof(udp_header_t));
-	  save = *teid;
-	  *teid = vnet_buffer (b)->gtpu.teid;
 
 	  /* Get next node index and adj index from tunnel next_dpo */
 	  sidx = vnet_buffer (b)->gtpu.session_index;
@@ -156,12 +147,58 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	  active = sx_get_rules(sess, SX_ACTIVE);
 	  direction = vnet_buffer (b)->gtpu.src_intf == INTF_ACCESS ? UL_SDF : DL_SDF;
 
-	  if (is_ip4)
+	  pl = vlib_buffer_get_current(b) + vnet_buffer (b)->gtpu.data_offset;
+
+	  acl = is_ip4 ? active->sdf[direction].ip4 : active->sdf[direction].ip6;
+	  if (acl == NULL)
 	    {
-	      ip4 = (ip4_header_t *)pl;
-	      acl = active->sdf[direction].ip4;
-	      if (PREDICT_TRUE (acl != NULL))
+	      uword *p;
+
+	      if (is_ip4)
 		{
+		  ip4 = (ip4_header_t *)vlib_buffer_get_current(b);
+		  gtpu4_tunnel_key_t key4;
+
+		  key4.dst = ip4->dst_address.as_u32;
+		  key4.teid = vnet_buffer (b)->gtpu.teid;
+
+		  p = hash_get (active->v4_wildcard_teid, key4.as_u64);
+		}
+	      else
+		{
+		  ip6 = (ip6_header_t *)vlib_buffer_get_current(b);
+		  gtpu6_tunnel_key_t key6;
+
+		  key6.dst.as_u64[0] = ip6->dst_address.as_u64[0];
+		  key6.dst.as_u64[1] = ip6->dst_address.as_u64[1];
+		  key6.teid = vnet_buffer (b)->gtpu.teid;
+
+		  p = hash_get_mem (active->v6_wildcard_teid, &key6);
+		}
+
+	      if (PREDICT_TRUE (p != NULL))
+		{
+		  pdr = sx_get_pdr_by_id(active, p[0]);
+		  if (PREDICT_TRUE (pdr != NULL))
+		    far = sx_get_far_by_id(active, pdr->far_id);
+		}
+	    }
+	  else
+	    {
+	      u32 save, *teid;
+
+	      data[0] = pl;
+
+	      /* append TEID to data */
+	      teid = (u32 *)(pl + (is_ip4 ? sizeof(ip4_header_t) : sizeof(ip6_header_t))
+			     + sizeof(udp_header_t));
+	      save = *teid;
+	      *teid = vnet_buffer (b)->gtpu.teid;
+
+	      if (is_ip4)
+		{
+		  ip4 = (ip4_header_t *)pl;
+
 		  rte_acl_classify(acl, data, results, 1, 1);
 		  clib_warning("Ctx: %p, src: %U, dst %U, r: %d\n",
 			       acl,
@@ -177,13 +214,10 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		      far = sx_get_far_by_id(active, pdr->far_id);
 		    }
 		}
-	    }
-	  else
-	    {
-	      ip6 = (ip6_header_t *)pl;
-	      acl = active->sdf[direction].ip6;
-	      if (PREDICT_TRUE (acl != NULL))
+	      else
 		{
+		  ip6 = (ip6_header_t *)pl;
+
 		  rte_acl_classify(acl, data, results, 1, 1);
 		  clib_warning("Ctx: %p, src: %U, dst %U, r: %d\n",
 			       acl,
@@ -200,9 +234,9 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		      far = sx_get_far_by_id(active, pdr->far_id);
 		    }
 		}
-	    }
 
-	  *teid = save;
+	      *teid = save;
+	    }
 
 	  if (PREDICT_TRUE (pdr != 0))
 	    {
