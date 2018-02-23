@@ -4610,11 +4610,16 @@ static int encode_vector_ie(const struct pfcp_group_ie_def *item,
 			    const struct pfcp_ie_def *def,
 			    u8 *v, u8 **vec)
 {
+  u8 *end;
   int r = 0;
 
-  for (u8 *i = *(u8 **)v; i < vec_end(*(u8 **)v); i += def->length)
+  if (!*(u8 **)v)
+    return 0;
+
+  end = *(u8 **)v + _vec_len(*(u8 **)v) * def->length;
+  for (u8 *p = *(u8 **)v; p < end; p += def->length)
     {
-      if ((r = encode_ie(item, def, i, vec)) != 0)
+      if ((r = encode_ie(item, def, p, vec)) != 0)
 	break;
     }
 
