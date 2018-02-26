@@ -181,7 +181,10 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		{
 		  pdr = sx_get_pdr_by_id(active, p[0]);
 		  if (PREDICT_TRUE (pdr != NULL))
-		    far = sx_get_far_by_id(active, pdr->far_id);
+		    {
+		      vnet_buffer (b)->gtpu.pdr_idx = pdr - active->pdr;
+		      far = sx_get_far_by_id(active, pdr->far_id);
+		    }
 		}
 	    }
 	  else
