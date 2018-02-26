@@ -70,7 +70,7 @@ u8 * format_gtpdp_encap_trace (u8 * s, va_list * args)
   gtpdp_encap_trace_t * t
       = va_arg (*args, gtpdp_encap_trace_t *);
 
-  s = format (s, "GTPU encap to gtpdp_session%d teid %d",
+  s = format (s, "GTPU encap to gtpdp_session%d teid 0x%08x",
 	      t->session_index, t->teid);
   return s;
 }

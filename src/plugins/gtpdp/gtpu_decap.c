@@ -55,12 +55,12 @@ static u8 * format_gtpu_rx_trace (u8 * s, va_list * args)
 
   if (t->session_index != ~0)
     {
-      s = format (s, "GTPU decap from gtpu_session%d teid %d next %d error %d",
+      s = format (s, "GTPU decap from gtpu_session%d teid 0x%08x next %d error %d",
 		  t->session_index, t->teid, t->next_index, t->error);
     }
   else
     {
-      s = format (s, "GTPU decap error - session for teid %d does not exist",
+      s = format (s, "GTPU decap error - session for teid 0x%08x does not exist",
 		  t->teid);
     }
   return s;
@@ -746,13 +746,13 @@ static u8 * format_gtpu_error_ind_trace (u8 * s, va_list * args)
 
   if (t->session_index != ~0)
     {
-      s = format (s, "GTPU Error Indication from %U, for gtpu_session%d teid %d error %d",
+      s = format (s, "GTPU Error Indication from %U, for gtpu_session%d teid 0x%08x error %d",
 		  format_ip46_address, &t->indication.addr, IP46_TYPE_ANY,
 		  t->session_index, t->indication.teid, t->error);
     }
   else
     {
-      s = format (s, "GTPU decap error - session for teid %d does not exist",
+      s = format (s, "GTPU decap error - session for teid 0x%08x does not exist",
 		  t->indication.teid);
     }
   return s;

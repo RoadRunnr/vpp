@@ -940,7 +940,7 @@ static void sx_add_del_v4_teid(const void *teid, void *si, int is_add)
   kv.key = v4_teid->as_u64;
   kv.value = sess - gtm->sessions;
 
-  clib_warning("gtpdp_sx: is_add: %d, TEID: %d, IP:%U, Session:%p, idx: %p.",
+  clib_warning("gtpdp_sx: is_add: %d, TEID: 0x%08x, IP:%U, Session:%p, idx: %p.",
 	       is_add, v4_teid->teid,
 	       format_ip4_address, &v4_teid->dst, sess,
 	       sess - gtm->sessions);
@@ -960,7 +960,7 @@ static void sx_add_del_v6_teid(const void *teid, void *si, int is_add)
   kv.key[2] = v6_teid->teid;
   kv.value = sess - gtm->sessions;
 
-  clib_warning("gtpdp_sx: is_add: %d, TEID: %d, IP:%U, Session:%p, idx: %p.",
+  clib_warning("gtpdp_sx: is_add: %d, TEID: 0x%08x, IP:%U, Session:%p, idx: %p.",
 	       is_add, v6_teid->teid,
 	       format_ip6_address, &v6_teid->dst, sess,
 	       sess - gtm->sessions);
@@ -1965,7 +1965,7 @@ format_sx_session(u8 * s, va_list * args)
       switch (far->forward.outer_header_creation) {
       case GTP_U_UDP_IPv4:
       case GTP_U_UDP_IPv6:
-	s = format(s, "    FQ-TEID: %U:%u\n",
+	s = format(s, "    FQ-TEID: %U:0x%08x\n",
 		   format_ip46_address, &far->forward.addr, IP46_TYPE_ANY,
 		   far->forward.teid);
 	break;
