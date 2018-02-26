@@ -67,6 +67,7 @@ typedef struct {
   u32 session_index;
   u64 cp_f_seid;
   u32 pdr_id;
+  u32 far_id;
   u8 packet_data[64 - 1 * sizeof (u32)];
 } gtpdp_classify_trace_t;
 
@@ -78,8 +79,8 @@ u8 * format_gtpdp_classify_trace (u8 * s, va_list * args)
     = va_arg (*args, gtpdp_classify_trace_t *);
   u32 indent = format_get_indent (s);
 
-  s = format (s, "gtpdp_session%d seid %d pdr %d\n%U%U",
-	      t->session_index, t->cp_f_seid, t->pdr_id,
+  s = format (s, "gtpdp_session%d seid %d pdr %d far %d\n%U%U",
+	      t->session_index, t->cp_f_seid, t->pdr_id, t->far_id,
 	      format_white_space, indent,
 	      format_ip4_header, t->packet_data, sizeof (t->packet_data));
   return s;
@@ -357,6 +358,7 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	      tr->session_index = sidx;
 	      tr->cp_f_seid = sess->cp_f_seid;
 	      tr->pdr_id = pdr ? pdr->id : ~0;
+	      tr->far_id = far ? far->id : ~0;
 	      clib_memcpy (tr->packet_data, vlib_buffer_get_current (b),
 			   sizeof (tr->packet_data));
 	    }
