@@ -452,8 +452,7 @@ typedef struct {
 
   /* list of remote GTP-U peer ref count used to stack FIB DPO objects */
   gtpdp_peer_t * peers;
-  uword * v4_peer;		/* remote ip4 GTP-U peer keyed on it's ip4 addr */
-  uword * v6_peer;		/* remote ip6 GTP-U peer keyed on it's ip6 addr */
+  uword * peer_index_by_ip;	/* remote GTP-U peer keyed on it's ip addr and vrf */
 
   /* vector of associated PFCP nodes */
   gtpdp_node_assoc_t *nodes;

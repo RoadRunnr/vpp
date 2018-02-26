@@ -585,19 +585,39 @@ const fib_node_vft_t gtpdp_vft = {
   .fnv_back_walk = gtpdp_peer_back_walk,
 };
 
-static uword
-peer_addr_ref (ip46_address_t * ip)
+static u32 nwi_to_vrf(uword nwi)
 {
   gtpdp_main_t *gtm = &gtpdp_main;
+  gtpdp_nwi_t * n;
+
+  if (!pool_is_free_index (gtm->nwis, nwi))
+    {
+      n = pool_elt_at_index (gtm->nwis, nwi);
+      return n->vrf;
+    }
+
+  return 0;
+}
+
+static uword
+peer_addr_ref (ip46_address_t * ip, uword nwi)
+{
+  gtpdp_main_t *gtm = &gtpdp_main;
+  ip46_address_fib_t key;
+  u32 encap_fib_index;
   gtpdp_peer_t * p;
   uword *peer;
   int is_ip4;
-  int vrf = 0;  /* TODO */
+  u32 vrf;
 
   is_ip4 = ip46_address_is_ip4 (ip);
-  peer = is_ip4 ?
-    hash_get (gtpdp_main.v4_peer, ip->ip4.as_u32) :
-    hash_get_mem (gtpdp_main.v6_peer, &ip->ip6);
+  vrf = nwi_to_vrf(nwi);
+  encap_fib_index = fib_table_find (is_ip4 ? FIB_PROTOCOL_IP4 : FIB_PROTOCOL_IP6, vrf);
+
+  key.addr = *ip;
+  key.fib_index = encap_fib_index;
+
+  peer = hash_get_mem (gtm->peer_index_by_ip, &key);
   if (peer)
     {
       p = pool_elt_at_index (gtm->peers, peer[0]);
@@ -607,23 +627,20 @@ peer_addr_ref (ip46_address_t * ip)
   pool_get_aligned (gtm->peers, p, CLIB_CACHE_LINE_BYTES);
   memset (p, 0, sizeof (*p));
   p->ref_cnt = 1;
+  p->encap_fib_index = encap_fib_index;
 
   if (is_ip4)
     {
       p->encap_index = gtpdp4_encap_node.index;
       p->forw_type = FIB_FORW_CHAIN_TYPE_UNICAST_IP4;
-      p->encap_fib_index = fib_table_find (FIB_PROTOCOL_IP4, vrf);
-
-      hash_set (gtpdp_main.v4_peer, ip->ip4.as_u32, p - gtm->peers);
     }
   else
     {
       p->encap_index = gtpdp6_encap_node.index;
       p->forw_type = FIB_FORW_CHAIN_TYPE_UNICAST_IP6;
-      p->encap_fib_index = fib_table_find (FIB_PROTOCOL_IP6, vrf);
-
-      hash_set_mem_alloc (&gtpdp_main.v6_peer, &ip->ip6, p - gtm->peers);
     }
+
+  hash_set_mem_alloc (&gtm->peer_index_by_ip, &key, p - gtm->peers);
 
   fib_node_init (&p->node, gtm->fib_node_type);
   fib_prefix_t tun_dst_pfx;
@@ -640,24 +657,31 @@ peer_addr_ref (ip46_address_t * ip)
 }
 
 static uword
-peer_addr_unref (ip46_address_t * ip)
+peer_addr_unref (ip46_address_t * ip, uword nwi)
 {
   gtpdp_main_t *gtm = &gtpdp_main;
+  ip46_address_fib_t key;
+  u32 encap_fib_index;
   gtpdp_peer_t * p;
   uword *peer;
+  int is_ip4;
+  u32 vrf;
 
-  peer = ip46_address_is_ip4 (ip) ?
-    hash_get (gtpdp_main.v4_peer, ip->ip4.as_u32) :
-    hash_get_mem (gtpdp_main.v6_peer, &ip->ip6);
+  is_ip4 = ip46_address_is_ip4 (ip);
+  vrf = nwi_to_vrf(nwi);
+  encap_fib_index = fib_table_find (is_ip4 ? FIB_PROTOCOL_IP4 : FIB_PROTOCOL_IP6, vrf);
+
+  key.addr = *ip;
+  key.fib_index = encap_fib_index;
+
+  peer = hash_get_mem (gtm->peer_index_by_ip, &key);
   ASSERT (peer);
 
   p = pool_elt_at_index (gtm->peers, peer[0]);
   if (--(p->ref_cnt) != 0)
     return p->ref_cnt;
 
-  ip46_address_is_ip4 (ip) ?
-    hash_unset (gtpdp_main.v4_peer, ip->ip4.as_u32) :
-    hash_unset_mem_free (&gtpdp_main.v6_peer, &ip->ip6);
+  hash_unset_mem_free (&gtm->peer_index_by_ip, &key);
 
   fib_entry_child_remove (p->fib_entry_index, p->sibling_index);
   fib_table_entry_delete_index (p->fib_entry_index, FIB_SOURCE_RR);
@@ -736,7 +760,7 @@ static void sx_free_rules(gtpdp_session_t *sx, int rule)
   vec_foreach (far, rules->far)
     {
       if (far->forward.outer_header_creation != 0)
-	peer_addr_unref(&far->forward.addr);
+	peer_addr_unref(&far->forward.addr, far->forward.nwi);
       vec_free(far->forward.rewrite);
     }
   vec_free(rules->far);
@@ -1696,7 +1720,7 @@ int sx_update_apply(gtpdp_session_t *sx)
       vec_foreach (far, pending->far)
 	if (far->forward.outer_header_creation != 0)
 	  {
-	    far->forward.peer_idx = peer_addr_ref(&far->forward.addr);
+	    far->forward.peer_idx = peer_addr_ref(&far->forward.addr, far->forward.nwi);
 
 	    switch (far->forward.outer_header_creation)
 	      {
