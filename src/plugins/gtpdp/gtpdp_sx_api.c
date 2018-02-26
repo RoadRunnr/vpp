@@ -1080,8 +1080,9 @@ ip_udp_gtpu_rewrite (gtpdp_far_forward_t * ff)
   gtpu->teid = clib_host_to_net_u32 (ff->teid);
 
   ff->rewrite = r.rw;
-  /* Now only support 8-byte gtpu header. TBD */
-  _vec_len (ff->rewrite) = sizeof (ip4_gtpu_header_t) - 4;
+
+  /* For now only support 8-byte gtpu header. TBD */
+  _vec_len (ff->rewrite) = len - 4;
 
   return;
 }
