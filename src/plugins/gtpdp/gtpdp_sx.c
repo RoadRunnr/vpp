@@ -1702,6 +1702,8 @@ int sx_update_apply(gtpdp_session_t *sx)
     }
   else
     {
+      pending->pdr = active->pdr;
+
       pending->vrf_ip = active->vrf_ip;
       active->vrf_ip = NULL;
 
@@ -1709,6 +1711,15 @@ int sx_update_apply(gtpdp_session_t *sx)
       active->v4_teid = NULL;
       pending->v6_teid = active->v6_teid;
       active->v6_teid = NULL;
+
+      pending->v4_wildcard_teid = active->v4_wildcard_teid;
+      active->v4_wildcard_teid = NULL;
+
+      pending->v6_wildcard_teid = active->v6_wildcard_teid;
+      active->v6_wildcard_teid = NULL;
+
+      memcpy(&pending->sdf, &active->sdf, sizeof(active->sdf));
+      memset(&active->sdf, 0, sizeof(active->sdf));
 
       pending->flags = active->flags;
     }
