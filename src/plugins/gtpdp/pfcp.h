@@ -304,7 +304,13 @@ typedef u16 pfcp_pdr_id_t;
 
 #define PFCP_IE_F_SEID					57
 typedef struct {
+  u8 flags;
+#define IE_F_SEID_IP_ADDRESS_V4				BIT(1)
+#define IE_F_SEID_IP_ADDRESS_V6				BIT(0)
+
   u64 seid;
+  ip4_address_t ip4;
+  ip6_address_t ip6;
 } pfcp_f_seid_t;
 
 #define PFCP_IE_APPLICATION_ID_PFDS			58
