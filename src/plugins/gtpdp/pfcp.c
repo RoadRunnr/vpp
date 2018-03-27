@@ -1334,18 +1334,18 @@ static void debug_f_seid(pfcp_f_seid_t *v)
   switch (v->flags & (IE_F_SEID_IP_ADDRESS_V4 | IE_F_SEID_IP_ADDRESS_V6))
     {
     case IE_F_SEID_IP_ADDRESS_V4:
-      pfcp_debug ("PFCP: F-SEID %016x,IPv4:%U.",
-		  v->seid, format_ip4_address, &v->ip4);
+      pfcp_debug ("PFCP: F-SEID 0x%016" PRIx64 " (%" PRIu64 "),IPv4:%U.",
+		  v->seid, v->seid, format_ip4_address, &v->ip4);
       break;
 
     case IE_F_SEID_IP_ADDRESS_V6:
-      pfcp_debug ("PFCP: F-SEID %016x,IPv6:%U.",
-		  v->seid, format_ip4_address, &v->ip6);
+      pfcp_debug ("PFCP: F-SEID 0x%016" PRIx64 " (%" PRIu64 "),IPv6:%U.",
+		  v->seid, v->seid, format_ip4_address, &v->ip6);
       break;
 
     case (IE_F_SEID_IP_ADDRESS_V4 | IE_F_SEID_IP_ADDRESS_V6):
-      pfcp_debug ("PFCP: F-SEID %016x,IPv4:%U,IPv6:%U.",
-		  v->seid,
+      pfcp_debug ("PFCP: F-SEID 0x%016" PRIx64 " (%" PRIu64 "),IPv4:%U,IPv6:%U.",
+		  v->seid, v->seid,
 		  format_ip4_address, &v->ip4,
 		  format_ip4_address, &v->ip6);
       break;

@@ -1919,9 +1919,9 @@ format_sx_session(u8 * s, va_list * args)
   gtpdp_far_t *far;
   gtpdp_urr_t *urr;
 
-  s = format(s, "CP F-SEID: %" PRIu64 " @ %p\n"
+  s = format(s, "CP F-SEID: 0x%016" PRIx64 " (%" PRIu64 ") @ %p\n"
 	     "Active: %u\nPending: %u\n",
-	     sx->cp_f_seid, sx,
+	     sx->cp_f_seid, sx->cp_f_seid, sx,
 	     sx->active ^ SX_ACTIVE, sx->active ^ SX_PENDING);
 
   s = format(s, "PDR: %p\nFAR: %p\n",
