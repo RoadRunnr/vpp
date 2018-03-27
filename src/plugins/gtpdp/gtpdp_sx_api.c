@@ -378,7 +378,7 @@ static int send_session_request(gtpdp_session_t * sx, u8 type, struct pfcp_group
   return 0;
 }
 
-static int send_response(stream_session_t * s, u8 type,
+static int send_response(stream_session_t * s, u64 cp_seid, u8 type,
 			 pfcp_header_t *req, struct pfcp_group *grp)
 {
   pfcp_header_t *resp;
@@ -393,7 +393,9 @@ static int send_response(stream_session_t * s, u8 type,
 
   if (req->s_flag)
     {
-      resp->session_hdr.seid = req->session_hdr.seid;
+      resp->s_flag = 1;
+      resp->session_hdr.seid = clib_host_to_net_u64(cp_seid);
+
       memcpy(resp->session_hdr.sequence, req->session_hdr.sequence,
 	     sizeof(resp->session_hdr.sequence));
       _vec_len(b) = offsetof(pfcp_header_t, session_hdr.ies);
@@ -435,7 +437,7 @@ static int handle_heartbeat_request(stream_session_t * s,
   clib_warning ("PFCP: start_time: %p, %d, %x.",
 		&sx, sx->start_time, sx->start_time);
 
-  send_response(s, PFCP_HEARTBEAT_RESPONSE, pfcp, &resp.grp);
+  send_response(s, 0, PFCP_HEARTBEAT_RESPONSE, pfcp, &resp.grp);
 
   return 0;
 }
@@ -542,7 +544,7 @@ static int handle_association_setup_request(stream_session_t * s,
   if (r == 0)
     resp.response.cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 
-  send_response(s, PFCP_ASSOCIATION_SETUP_RESPONSE, pfcp, &resp.grp);
+  send_response(s, 0, PFCP_ASSOCIATION_SETUP_RESPONSE, pfcp, &resp.grp);
   return r;
 }
 
@@ -1566,7 +1568,7 @@ static int handle_session_establishment_request(stream_session_t * s,
   if (r == 0)
     resp.response.cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 
-  send_response(s, PFCP_SESSION_ESTABLISHMENT_RESPONSE, pfcp, &resp.grp);
+  send_response(s, sess->cp_f_seid, PFCP_SESSION_ESTABLISHMENT_RESPONSE, pfcp, &resp.grp);
 
   return r;
 }
@@ -1587,6 +1589,7 @@ static int handle_session_modification_request(stream_session_t * s,
   pfcp_session_modification_response_t resp;
   pfcp_query_urr_t *qry;
   gtpdp_session_t *sess;
+  u64 cp_f_seid = 0;
   int r = 0;
 
   memset(&resp, 0, sizeof(resp));
@@ -1601,6 +1604,8 @@ static int handle_session_modification_request(stream_session_t * s,
       r = -1;
       goto out_send_resp;
     }
+
+  cp_f_seid = sess->cp_f_seid;
 
   if (msg->grp.fields & (BIT(SESSION_MODIFICATION_REQUEST_REMOVE_PDR) |
 			 BIT(SESSION_MODIFICATION_REQUEST_REMOVE_FAR) |
@@ -1714,7 +1719,7 @@ static int handle_session_modification_request(stream_session_t * s,
   if (r == 0)
     resp.response.cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 
-  send_response(s, PFCP_SESSION_MODIFICATION_RESPONSE, pfcp, &resp.grp);
+  send_response(s, cp_f_seid, PFCP_SESSION_MODIFICATION_RESPONSE, pfcp, &resp.grp);
 
  return r;
 }
@@ -1735,6 +1740,7 @@ static int handle_session_deletion_request(stream_session_t * s,
   pfcp_session_deletion_response_t resp;
   gtpdp_session_t *sess;
   struct rules *active;
+  u64 cp_f_seid = 0;
   int r = 0;
 
   memset(&resp, 0, sizeof(resp));
@@ -1749,6 +1755,8 @@ static int handle_session_deletion_request(stream_session_t * s,
       r = -1;
       goto out_send_resp;
     }
+
+  cp_f_seid = sess->cp_f_seid;
 
   if ((r = sx_disable_session(sess)) != 0)
     {
@@ -1778,7 +1786,7 @@ static int handle_session_deletion_request(stream_session_t * s,
       resp.response.cause = PFCP_CAUSE_REQUEST_ACCEPTED;
     }
 
-  send_response(s, PFCP_SESSION_DELETION_RESPONSE, pfcp, &resp.grp);
+  send_response(s, cp_f_seid, PFCP_SESSION_DELETION_RESPONSE, pfcp, &resp.grp);
 
   return r;
 }
