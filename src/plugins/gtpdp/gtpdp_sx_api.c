@@ -1523,10 +1523,13 @@ static int handle_session_establishment_request(stream_session_t * s,
 						pfcp_session_establishment_request_t *msg)
 {
   pfcp_session_establishment_response_t resp;
+  transport_connection_t *tc;
   gtpdp_session_t *sess;
   int r = 0;
 
   assert(sx != NULL);
+
+  tc = session_get_transport(s);
 
   memset(&resp, 0, sizeof(resp));
   SET_BIT(resp.grp.fields, SESSION_ESTABLISHMENT_RESPONSE_CAUSE);
@@ -1534,6 +1537,16 @@ static int handle_session_establishment_request(stream_session_t * s,
 
   SET_BIT(resp.grp.fields, SESSION_ESTABLISHMENT_RESPONSE_UP_F_SEID);
   resp.up_f_seid.seid = msg->f_seid.seid;
+  if (tc->is_ip4)
+    {
+      resp.up_f_seid.flags |= IE_F_SEID_IP_ADDRESS_V4;
+      resp.up_f_seid.ip4 = tc->lcl_ip.ip4;
+    }
+  else
+    {
+      resp.up_f_seid.flags |= IE_F_SEID_IP_ADDRESS_V6;
+      resp.up_f_seid.ip6 = tc->lcl_ip.ip6;
+    }
 
   sess = sx_create_session(msg->f_seid.seid, session_handle(s));
 
