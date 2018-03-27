@@ -76,76 +76,85 @@ static void init_response_node_id(struct pfcp_response *r)
 int gtpdp_sx_handle_msg(stream_session_t * s, void *sxp, u8 * data)
 {
   gtpdp_sx_session_t *sx = (gtpdp_sx_session_t *)sxp;
-  pfcp_header_t *pfcp = (pfcp_header_t *)data;
   int len = vec_len(data);
+  u8 *p = data;
 
-  if (len < 4)
-    return -1;
-
-  clib_warning ("%U", format_pfcp_msg_hdr, pfcp);
-
-  if (pfcp->version != 1)
+  while (len >= 4)
     {
-      pfcp_header_t *hdr = NULL;
+      pfcp_header_t *pfcp = (pfcp_header_t *)p;
+      u16 pfcp_len = clib_net_to_host_u16(pfcp->length);
 
-      clib_warning ("PFCP: msg version invalid: %d.", pfcp->version);
+      clib_warning ("%U", format_pfcp_msg_hdr, pfcp);
 
-      vec_validate(hdr, 1);
+      if (pfcp->version != 1)
+	{
+	  pfcp_header_t *hdr = NULL;
 
-      hdr->version = 1;
-      hdr->type = PFCP_VERSION_NOT_SUPPORTED_RESPONSE;
-      hdr->length = offsetof(pfcp_header_t, msg_hdr.ies) - 4;
-      _vec_len(hdr) = offsetof(pfcp_header_t, msg_hdr.ies);
+	  clib_warning ("PFCP: msg version invalid: %d.", pfcp->version);
 
-      gtpdp_sx_send_data(s, (u8 *)hdr);
-      vec_free(hdr);
-      return 0;
-  }
+	  vec_validate(hdr, 1);
 
-  if (len != (ntohs(pfcp->length) + 4) ||
-      (!pfcp->s_flag && len < offsetof(pfcp_header_t, msg_hdr.ies)) ||
-      (pfcp->s_flag && len < offsetof(pfcp_header_t, session_hdr.ies)))
-    {
-      clib_warning ("PFCP: msg length invalid, data %d, msg %d.",
-		    len, ntohs(pfcp->length));
-      return -1;
+	  hdr->version = 1;
+	  hdr->type = PFCP_VERSION_NOT_SUPPORTED_RESPONSE;
+	  hdr->length = offsetof(pfcp_header_t, msg_hdr.ies) - 4;
+	  _vec_len(hdr) = offsetof(pfcp_header_t, msg_hdr.ies);
+
+	  gtpdp_sx_send_data(s, (u8 *)hdr);
+	  vec_free(hdr);
+
+	  goto next;
+	}
+
+      if (len < pfcp_len + 4 ||
+	  (!pfcp->s_flag && len < offsetof(pfcp_header_t, msg_hdr.ies)) ||
+	  (pfcp->s_flag && len < offsetof(pfcp_header_t, session_hdr.ies)))
+	{
+	  clib_warning ("PFCP: msg length invalid, data %d, msg %d.", len, pfcp_len);
+	  return -1;
+	}
+
+      switch (pfcp->type)
+	{
+	case PFCP_HEARTBEAT_REQUEST:
+	case PFCP_HEARTBEAT_RESPONSE:
+	case PFCP_PFD_MANAGEMENT_REQUEST:
+	case PFCP_PFD_MANAGEMENT_RESPONSE:
+	case PFCP_ASSOCIATION_SETUP_REQUEST:
+	case PFCP_ASSOCIATION_SETUP_RESPONSE:
+	case PFCP_ASSOCIATION_UPDATE_REQUEST:
+	case PFCP_ASSOCIATION_UPDATE_RESPONSE:
+	case PFCP_ASSOCIATION_RELEASE_REQUEST:
+	case PFCP_ASSOCIATION_RELEASE_RESPONSE:
+	case PFCP_VERSION_NOT_SUPPORTED_RESPONSE:
+	case PFCP_NODE_REPORT_REQUEST:
+	case PFCP_NODE_REPORT_RESPONSE:
+	  node_msg(s, sx, pfcp);
+	  break;
+
+	case PFCP_SESSION_SET_DELETION_REQUEST:
+	case PFCP_SESSION_SET_DELETION_RESPONSE:
+	case PFCP_SESSION_ESTABLISHMENT_REQUEST:
+	case PFCP_SESSION_ESTABLISHMENT_RESPONSE:
+	case PFCP_SESSION_MODIFICATION_REQUEST:
+	case PFCP_SESSION_MODIFICATION_RESPONSE:
+	case PFCP_SESSION_DELETION_REQUEST:
+	case PFCP_SESSION_DELETION_RESPONSE:
+	case PFCP_SESSION_REPORT_REQUEST:
+	case PFCP_SESSION_REPORT_RESPONSE:
+	  session_msg(s, sx, pfcp);
+	  break;
+
+	default:
+	  clib_warning ("PFCP: msg type invalid: %d.", pfcp->type);
+	  break;
+	}
+
+    next:
+      len -= pfcp_len + 4;
+      p += pfcp_len + 4;
     }
 
-  switch (pfcp->type)
-    {
-    case PFCP_HEARTBEAT_REQUEST:
-    case PFCP_HEARTBEAT_RESPONSE:
-    case PFCP_PFD_MANAGEMENT_REQUEST:
-    case PFCP_PFD_MANAGEMENT_RESPONSE:
-    case PFCP_ASSOCIATION_SETUP_REQUEST:
-    case PFCP_ASSOCIATION_SETUP_RESPONSE:
-    case PFCP_ASSOCIATION_UPDATE_REQUEST:
-    case PFCP_ASSOCIATION_UPDATE_RESPONSE:
-    case PFCP_ASSOCIATION_RELEASE_REQUEST:
-    case PFCP_ASSOCIATION_RELEASE_RESPONSE:
-    case PFCP_VERSION_NOT_SUPPORTED_RESPONSE:
-    case PFCP_NODE_REPORT_REQUEST:
-    case PFCP_NODE_REPORT_RESPONSE:
-      return node_msg(s, sx, pfcp);
-
-    case PFCP_SESSION_SET_DELETION_REQUEST:
-    case PFCP_SESSION_SET_DELETION_RESPONSE:
-    case PFCP_SESSION_ESTABLISHMENT_REQUEST:
-    case PFCP_SESSION_ESTABLISHMENT_RESPONSE:
-    case PFCP_SESSION_MODIFICATION_REQUEST:
-    case PFCP_SESSION_MODIFICATION_RESPONSE:
-    case PFCP_SESSION_DELETION_REQUEST:
-    case PFCP_SESSION_DELETION_RESPONSE:
-    case PFCP_SESSION_REPORT_REQUEST:
-    case PFCP_SESSION_REPORT_RESPONSE:
-      return session_msg(s, sx, pfcp);
-
-    default:
-      clib_warning ("PFCP: msg type invalid: %d.", pfcp->type);
-      break;
-    }
-
-  return -1;
+  return 0;
 }
 
 /*************************************************************************/
