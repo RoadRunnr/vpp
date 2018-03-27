@@ -20,16 +20,16 @@
 
 #include <vlib/vlib.h>
 #include <vnet/pg/pg.h>
-#include <gtpdp/gtpdp.h>
-#include <gtpdp/gtpdp_sx.h>
+#include <gtp-up/gtp_up.h>
+#include <gtp-up/gtp_up_sx.h>
 
 vlib_node_registration_t gtpu4_input_node;
 vlib_node_registration_t gtpu6_input_node;
 
 #define foreach_gtpu_input_next        \
   _(DROP, "error-drop")		       \
-  _(IP4_CLASSIFY, "gtpdp-ip4-classify")	\
-  _(IP6_CLASSIFY, "gtpdp-ip6-classify")	\
+  _(IP4_CLASSIFY, "gtp_up-ip4-classify")	\
+  _(IP6_CLASSIFY, "gtp_up-ip6-classify")	\
   _(ERROR_INDICATION, "gtp-error-indication")
 
 typedef enum
@@ -73,7 +73,7 @@ gtpu_input (vlib_main_t * vm,
 	     u32 is_ip4)
 {
   u32 n_left_from, next_index, * from, * to_next;
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   vnet_main_t * vnm = gtm->vnet_main;
   vnet_interface_main_t * im = &vnm->interface_main;
   u32 last_session_index = ~0;
@@ -111,7 +111,7 @@ gtpu_input (vlib_main_t * vm,
 	  gtpu_header_t * gtpu0, * gtpu1;
 	  u32 gtpu_hdr_len0 = 0, gtpu_hdr_len1 =0 ;
 	  u32 session_index0, session_index1;
-	  gtpdp_session_t * t0, * t1;
+	  gtp_up_session_t * t0, * t1;
 	  gtpu4_tunnel_key_t key4_0, key4_1;
 	  u32 error0, error1;
 	  u32 sw_if_index0, sw_if_index1, len0, len1;
@@ -468,7 +468,7 @@ gtpu_input (vlib_main_t * vm,
 	  gtpu_header_t * gtpu0;
 	  u32 gtpu_hdr_len0 = 0;
 	  u32 session_index0;
-	  gtpdp_session_t * t0;
+	  gtp_up_session_t * t0;
 	  gtpu4_tunnel_key_t key4_0;
 	  u32 error0;
 	  u32 sw_if_index0, len0;
@@ -681,7 +681,7 @@ gtpu6_input (vlib_main_t * vm,
 
 static char * gtpu_error_strings[] = {
 #define gtpu_error(n,s) s,
-#include <gtpdp/gtpu_error.def>
+#include <gtp-up/gtpu_error.def>
 #undef gtpu_error
 #undef _
 };
@@ -852,7 +852,7 @@ process_error_indication (vlib_main_t * vm,
 			  vlib_node_runtime_t * node,
 			  vlib_frame_t * frame)
 {
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   u32 *buffers, *first_buffer;
   gtp_error_ind_t error;
   u32 n_errors_left;
@@ -865,7 +865,7 @@ process_error_indication (vlib_main_t * vm,
   while (n_errors_left >= 1)
     {
       gtpu_header_t * gtpu;
-      gtpdp_session_t * t;
+      gtp_up_session_t * t;
       vlib_buffer_t * b;
       u32 session_index;
       u32 bi, err;
@@ -934,7 +934,7 @@ process_error_indication (vlib_main_t * vm,
 
       t = pool_elt_at_index (gtm->sessions, session_index);
 
-      gtpdp_sx_error_report(t, &error);
+      gtp_up_sx_error_report(t, &error);
 
     trace:
       if (PREDICT_FALSE(b->flags & VLIB_BUFFER_IS_TRACED))
@@ -975,7 +975,7 @@ ip_gtpu_bypass_inline (vlib_main_t * vm,
 			vlib_frame_t * frame,
 			u32 is_ip4)
 {
-  //  gtpdp_main_t * gtm = &gtpdp_main;
+  //  gtp_up_main_t * gtm = &gtp_up_main;
   u32 * from, * to_next, n_left_from, n_left_to_next, next_index;
   vlib_node_runtime_t * error_node = vlib_node_get_runtime (vm, ip4_input_node.index);
 #if VTEP_VALIDATION

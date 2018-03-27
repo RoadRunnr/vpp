@@ -1,9 +1,9 @@
-GTP-U DP based on VPP
+GTP-U UP based on VPP
 =====================
 
 For main VPP README, skip to the next chapter.
 
-The GTPDP plugins implements a GTP-U datapath based on 3GPP TS 23.214 and
+The GTP-UP plugins implements a GTP-U user plane based on 3GPP TS 23.214 and
 3GPP TS 29.244 version 14.1.
 
 Note: 3GPP Version 14.2+ changed the binary format of the PFCP protocol. The

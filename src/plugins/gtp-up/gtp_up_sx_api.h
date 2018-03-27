@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _GTPDP_SX_ERL_H
-#define _GTPDP_SX_ERL_H
+#ifndef _GTP_UP_SX_ERL_H
+#define _GTP_UP_SX_ERL_H
 
 #include <vppinfra/types.h>
 #include <vnet/session/session.h>
@@ -23,11 +23,11 @@
 #define PRIsMAC "%02x:%02x:%02x:%02x:%02x:%02x"
 #define ARGsMAC(m) (m)[0], (m)[1], (m)[2], (m)[3], (m)[4], (m)[5]
 
-size_t gtpdp_sx_api_session_data_size(void);
-void gtpdp_sx_api_session_data_init(void *, time_t);
+size_t gtp_up_sx_api_session_data_size(void);
+void gtp_up_sx_api_session_data_init(void *, time_t);
 
-int gtpdp_sx_handle_msg(stream_session_t * s, void *sx, u8 * data);
+int gtp_up_sx_handle_msg(stream_session_t * s, void *sx, u8 * data);
 
 u8 * format_ipfilter(u8 * s, va_list * args);
 
-#endif /* _GTPDP_SX_ERL_H */
+#endif /* _GTP_UP_SX_ERL_H */

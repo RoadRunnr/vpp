@@ -14,7 +14,7 @@
  */
 
 /** @file
-    udp gtpdp_sx server
+    udp gtp_up_sx server
 */
 
 #include <vnet/udp/udp.h>
@@ -26,8 +26,8 @@
 
 #include <vppinfra/bihash_template.c>
 
-#include "gtpdp_sx_server.h"
-#include "gtpdp_sx_api.h"
+#include "gtp_up_sx_server.h"
+#include "gtp_up_sx_api.h"
 
 typedef enum
 {
@@ -82,7 +82,7 @@ free_sx_process (sx_server_args * args)
 }
 #endif
 
-void gtpdp_sx_send_data (stream_session_t * s, u8 * data)
+void gtp_up_sx_send_data (stream_session_t * s, u8 * data)
 {
   session_fifo_event_t evt;
   u32 offset, bytes_to_send;
@@ -173,7 +173,7 @@ sx_process (vlib_main_t * vm,
 	  s = session_get_from_handle (args->session_handle);
 	  ASSERT (s);
 
-	  gtpdp_sx_handle_msg(s, (void *)(args + 1), args->data);
+	  gtp_up_sx_handle_msg(s, (void *)(args + 1), args->data);
 	  // sx_send_data(s, args->data);
 	  vec_free(args->data);
 	}
@@ -204,7 +204,7 @@ sx_process (vlib_main_t * vm,
 	    s = session_get_from_handle (args->session_handle);
 	    ASSERT (s);
 
-	    gtpdp_sx_send_data(s, (u8 *)evt->data);
+	    gtp_up_sx_send_data(s, (u8 *)evt->data);
 
 	    vec_free(evt->data);
 	    clib_mem_free(evt);
@@ -306,7 +306,7 @@ session_rx_request (stream_session_t * s)
 }
 
 static int
-gtpdp_sx_server_rx_callback (stream_session_t * s)
+gtp_up_sx_server_rx_callback (stream_session_t * s)
 {
   static u8 dummy_name[] = "Sx-API-1";
   sx_server_main_t *sx = &sx_server_main;
@@ -338,11 +338,11 @@ gtpdp_sx_server_rx_callback (stream_session_t * s)
   if (rv < 0)
     {
       /* send the command to a new/recycled vlib process */
-      args = clib_mem_alloc (sizeof (*args) + gtpdp_sx_api_session_data_size());
+      args = clib_mem_alloc (sizeof (*args) + gtp_up_sx_api_session_data_size());
       args->node_id = node_id;
       args->data = vec_dup (sx->rx_buf[s->thread_index]);
       args->session_handle = session_handle (s);
-      gtpdp_sx_api_session_data_init((void *)(args + 1), sx->start_time);
+      gtp_up_sx_api_session_data_init((void *)(args + 1), sx->start_time);
 
 
       clib_warning ("PFCP: start_time: %p, %d, %x.",
@@ -380,7 +380,7 @@ gtpdp_sx_server_rx_callback (stream_session_t * s)
 }
 
 void
-gtpdp_sx_server_notify(u64 session_handle, u8 * data)
+gtp_up_sx_server_notify(u64 session_handle, u8 * data)
 {
   static u8 dummy_name[] = "Sx-API-1";
   sx_server_main_t *sx = &sx_server_main;
@@ -421,7 +421,7 @@ gtpdp_sx_server_notify(u64 session_handle, u8 * data)
 /*********************************************************/
 
 static int
-gtpdp_sx_session_create_callback (stream_session_t * s)
+gtp_up_sx_session_create_callback (stream_session_t * s)
 {
   sx_server_main_t *sx = &sx_server_main;
 
@@ -434,7 +434,7 @@ gtpdp_sx_session_create_callback (stream_session_t * s)
 }
 
 static void
-gtpdp_sx_session_disconnect_callback (stream_session_t * s)
+gtp_up_sx_session_disconnect_callback (stream_session_t * s)
 {
   clib_warning ("called...");
 
@@ -442,7 +442,7 @@ gtpdp_sx_session_disconnect_callback (stream_session_t * s)
 }
 
 static void
-gtpdp_sx_session_reset_callback (stream_session_t * s)
+gtp_up_sx_session_reset_callback (stream_session_t * s)
 {
   clib_warning ("Reset session %U", format_stream_session, s, 2);
 
@@ -450,7 +450,7 @@ gtpdp_sx_session_reset_callback (stream_session_t * s)
 }
 
 static int
-gtpdp_sx_session_connected_callback (u32 app_index, u32 api_context,
+gtp_up_sx_session_connected_callback (u32 app_index, u32 api_context,
 				    stream_session_t * s, u8 is_fail)
 {
   clib_warning ("called...");
@@ -459,12 +459,12 @@ gtpdp_sx_session_connected_callback (u32 app_index, u32 api_context,
 
 
 /* *INDENT-OFF* */
-static session_cb_vft_t gtpdp_sx_server = {
-    .session_accept_callback = gtpdp_sx_session_create_callback,
-    .session_disconnect_callback = gtpdp_sx_session_disconnect_callback,
-    .session_connected_callback = gtpdp_sx_session_connected_callback,
-    .builtin_server_rx_callback = gtpdp_sx_server_rx_callback,
-    .session_reset_callback = gtpdp_sx_session_reset_callback
+static session_cb_vft_t gtp_up_sx_server = {
+    .session_accept_callback = gtp_up_sx_session_create_callback,
+    .session_disconnect_callback = gtp_up_sx_session_disconnect_callback,
+    .session_connected_callback = gtp_up_sx_session_connected_callback,
+    .builtin_server_rx_callback = gtp_up_sx_server_rx_callback,
+    .session_reset_callback = gtp_up_sx_session_reset_callback
 };
 /* *INDENT-ON* */
 
@@ -479,12 +479,12 @@ create_api_loopback (vlib_main_t * vm)
   shmem_hdr = am->shmem_hdr;
   sx->vl_input_queue = shmem_hdr->vl_input_queue;
   sx->my_client_index =
-    vl_api_memclnt_create_internal ("gtpdp_sx_server", sx->vl_input_queue);
+    vl_api_memclnt_create_internal ("gtp_up_sx_server", sx->vl_input_queue);
   return 0;
 }
 
 static int
-attach_gtpdp_sx_uri_server ()
+attach_gtp_up_sx_uri_server ()
 {
   sx_server_main_t *sx = &sx_server_main;
   vnet_app_attach_args_t _a, *a = &_a;
@@ -494,7 +494,7 @@ attach_gtpdp_sx_uri_server ()
   memset (options, 0, sizeof (options));
 
   a->api_client_index = sx->my_client_index;
-  a->session_cb_vft = &gtpdp_sx_server;
+  a->session_cb_vft = &gtp_up_sx_server;
   a->options = options;
   a->options[APP_OPTIONS_ACCEPT_COOKIE] = 0x12345678;
   a->options[APP_OPTIONS_SEGMENT_SIZE] = (2 << 30);	/*$$$$ config / arg */
@@ -533,7 +533,7 @@ sx_enable_server (vlib_main_t * vm)
   vec_validate (sx_server_main.vpp_queue, num_threads - 1);
 
   clib_warning ("attach...");
-  rv = attach_gtpdp_sx_uri_server ();
+  rv = attach_gtp_up_sx_uri_server ();
   if (rv)
     return rv;
 
@@ -559,7 +559,7 @@ sx_disable_server ()
 }
 
 static clib_error_t *
-gtpdp_sx_enable_disable_command_fn (vlib_main_t * vm,
+gtp_up_sx_enable_disable_command_fn (vlib_main_t * vm,
 				    unformat_input_t * input,
 				    vlib_cli_command_t * cmd)
 {
@@ -606,11 +606,11 @@ gtpdp_sx_enable_disable_command_fn (vlib_main_t * vm,
   return 0;
 }
 
-VLIB_CLI_COMMAND (gtpdp_sx_enable_disable_command, static) =
+VLIB_CLI_COMMAND (gtp_up_sx_enable_disable_command, static) =
 {
-  .path = "gtpdp sx",
-  .short_help = "gtpdp sx [disable]",
-  .function = gtpdp_sx_enable_disable_command_fn,
+  .path = "gtp-up sx",
+  .short_help = "gtp-up sx [disable]",
+  .function = gtp_up_sx_enable_disable_command_fn,
 };
 /* *INDENT-ON* */
 

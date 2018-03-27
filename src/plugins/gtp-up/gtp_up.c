@@ -1,5 +1,5 @@
 /*
- * gtpdp.c - 3GPP TS 29.244 GTP-U DP plug-in for vpp
+ * gtp_up.c - 3GPP TS 29.244 GTP-U UP plug-in for vpp
  *
  * Copyright (c) 2017 Travelping GmbH
  *
@@ -26,13 +26,13 @@
 #include <vnet/vnet.h>
 #include <vnet/plugin/plugin.h>
 #include <vpp/app/version.h>
-#include <gtpdp/gtpdp.h>
-#include <gtpdp/gtpdp_sx.h>
-#include <gtpdp/pfcp.h>
+#include <gtp-up/gtp_up.h>
+#include <gtp-up/gtp_up_sx.h>
+#include <gtp-up/pfcp.h>
 
 /* Action function shared between message handler and debug CLI */
 
-int gtpdp_enable_disable (gtpdp_main_t * sm, u32 sw_if_index,
+int gtp_up_enable_disable (gtp_up_main_t * sm, u32 sw_if_index,
 			  int enable_disable)
 {
   vnet_sw_interface_t * sw;
@@ -48,18 +48,18 @@ int gtpdp_enable_disable (gtpdp_main_t * sm, u32 sw_if_index,
   if (sw->type != VNET_SW_INTERFACE_TYPE_HARDWARE)
     return VNET_API_ERROR_INVALID_SW_IF_INDEX;
 
-  vnet_feature_enable_disable ("device-input", "gtpdp",
+  vnet_feature_enable_disable ("device-input", "gtp_up",
 			       sw_if_index, enable_disable, 0, 0);
 
   return rv;
 }
 
 static clib_error_t *
-gtpdp_enable_disable_command_fn (vlib_main_t * vm,
+gtp_up_enable_disable_command_fn (vlib_main_t * vm,
 				 unformat_input_t * input,
 				 vlib_cli_command_t * cmd)
 {
-  gtpdp_main_t * sm = &gtpdp_main;
+  gtp_up_main_t * sm = &gtp_up_main;
   u32 sw_if_index = ~0;
   int enable_disable = 1;
 
@@ -79,7 +79,7 @@ gtpdp_enable_disable_command_fn (vlib_main_t * vm,
   if (sw_if_index == ~0)
     return clib_error_return (0, "Please specify an interface...");
 
-  rv = gtpdp_enable_disable (sm, sw_if_index, enable_disable);
+  rv = gtp_up_enable_disable (sm, sw_if_index, enable_disable);
 
   switch(rv)
     {
@@ -96,26 +96,26 @@ gtpdp_enable_disable_command_fn (vlib_main_t * vm,
     break;
 
   default:
-    return clib_error_return (0, "gtpdp_enable_disable returned %d",
+    return clib_error_return (0, "gtp_up_enable_disable returned %d",
 			      rv);
     }
   return 0;
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (gtpdp_enable_disable_command, static) =
+VLIB_CLI_COMMAND (gtp_up_enable_disable_command, static) =
 {
-  .path = "gtpdp enable-disable",
+  .path = "gtp-up enable-disable",
   .short_help =
-  "gtpdp enable-disable <interface-name> [disable]",
-  .function = gtpdp_enable_disable_command_fn,
+  "gtp-up enable-disable <interface-name> [disable]",
+  .function = gtp_up_enable_disable_command_fn,
 };
 /* *INDENT-ON* */
 
-int vnet_gtpdp_nwi_add_del(u8 * name, u32 vrf, u8 add)
+int vnet_gtp_up_nwi_add_del(u8 * name, u32 vrf, u8 add)
 {
-  gtpdp_main_t * gtm = &gtpdp_main;
-  gtpdp_nwi_t * nwi;
+  gtp_up_main_t * gtm = &gtp_up_main;
+  gtp_up_nwi_t * nwi;
   uword *p;
 
   p = hash_get_mem (gtm->nwi_index_by_name, name);
@@ -155,7 +155,7 @@ int vnet_gtpdp_nwi_add_del(u8 * name, u32 vrf, u8 add)
  * A historical / hysterical micro-TLV scheme. DGMS.
  */
 static u8 *
-gtpdp_name_to_labels (u8 * name)
+gtp_up_name_to_labels (u8 * name)
 {
   int i;
   int last_label_index;
@@ -188,7 +188,7 @@ gtpdp_name_to_labels (u8 * name)
 }
 
 static clib_error_t *
-gtpdp_nwi_add_del_command_fn (vlib_main_t * vm,
+gtp_up_nwi_add_del_command_fn (vlib_main_t * vm,
 			      unformat_input_t * main_input,
 			      vlib_cli_command_t * cmd)
 {
@@ -225,9 +225,9 @@ gtpdp_nwi_add_del_command_fn (vlib_main_t * vm,
     return clib_error_return (0, "name or label must be specified!");
 
   if (!name)
-    name = gtpdp_name_to_labels(label);
+    name = gtp_up_name_to_labels(label);
 
-  rv = vnet_gtpdp_nwi_add_del(name, vrf, add);
+  rv = vnet_gtp_up_nwi_add_del(name, vrf, add);
 
   switch (rv)
     {
@@ -244,7 +244,7 @@ gtpdp_nwi_add_del_command_fn (vlib_main_t * vm,
 
     default:
       error = clib_error_return
-	(0, "vnet_gtpdp_nwi_add_del returned %d", rv);
+	(0, "vnet_gtp_up_nwi_add_del returned %d", rv);
       break;
     }
 
@@ -256,25 +256,25 @@ done:
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (gtpdp_nwi_add_del_command, static) =
+VLIB_CLI_COMMAND (gtp_up_nwi_add_del_command, static) =
 {
-  .path = "gtpdp nwi create",
+  .path = "gtp-up nwi create",
   .short_help =
-  "gtpdp nwi create [name <name> | dns <label>] [vrf <vrf>]",
-  .function = gtpdp_nwi_add_del_command_fn,
+  "gtp-up nwi create [name <name> | dns <label>] [vrf <vrf>]",
+  .function = gtp_up_nwi_add_del_command_fn,
 };
 /* *INDENT-ON* */
 
 #if 0
 static void vtep_ip4_ref(ip4_address_t * ip, u8 ref)
 {
-  uword *vtep = hash_get (gtpdp_main.vtep4, ip->as_u32);
+  uword *vtep = hash_get (gtp_up_main.vtep4, ip->as_u32);
   if (ref)
     {
       if (vtep)
 	++(*vtep);
       else
-	hash_set (gtpdp_main.vtep4, ip->as_u32, 1);
+	hash_set (gtp_up_main.vtep4, ip->as_u32, 1);
     }
   else
     {
@@ -282,19 +282,19 @@ static void vtep_ip4_ref(ip4_address_t * ip, u8 ref)
 	return;
 
       if (--(*vtep) == 0)
-	hash_unset (gtpdp_main.vtep4, ip->as_u32);
+	hash_unset (gtp_up_main.vtep4, ip->as_u32);
     }
 }
 
 static void vtep_ip6_ref(ip6_address_t * ip, u8 ref)
 {
-  uword *vtep = hash_get_mem (gtpdp_main.vtep6, ip);
+  uword *vtep = hash_get_mem (gtp_up_main.vtep6, ip);
   if (ref)
     {
       if (vtep)
 	++(*vtep);
       else
-	hash_set_mem_alloc (&gtpdp_main.vtep6, ip, 1);
+	hash_set_mem_alloc (&gtp_up_main.vtep6, ip, 1);
     }
   else
     {
@@ -302,7 +302,7 @@ static void vtep_ip6_ref(ip6_address_t * ip, u8 ref)
 	return;
 
       if (--(*vtep) == 0)
-	hash_unset_mem_free (&gtpdp_main.vtep6, ip);
+	hash_unset_mem_free (&gtp_up_main.vtep6, ip);
     }
 }
 
@@ -327,11 +327,11 @@ static void vtep_if_address_add_del(u32 sw_if_index, u8 add)
 }
 #endif
 
-int vnet_gtpdp_nwi_set_addr(u8 * name, ip46_address_t *ip, u32 teid, u32 mask, u8 add)
+int vnet_gtp_up_nwi_set_addr(u8 * name, ip46_address_t *ip, u32 teid, u32 mask, u8 add)
 {
-  gtpdp_main_t * gtm = &gtpdp_main;
-  gtpdp_nwi_ip_res_t *ip_res;
-  gtpdp_nwi_t * nwi;
+  gtp_up_main_t * gtm = &gtp_up_main;
+  gtp_up_nwi_ip_res_t *ip_res;
+  gtp_up_nwi_t * nwi;
   uword *p;
 
   p = hash_get_mem (gtm->nwi_index_by_name, name);
@@ -373,7 +373,7 @@ int vnet_gtpdp_nwi_set_addr(u8 * name, ip46_address_t *ip, u32 teid, u32 mask, u
 }
 
 clib_error_t *
-gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
+gtp_up_nwi_set_addr_command_fn (vlib_main_t * vm,
 			       unformat_input_t * main_input,
 			       vlib_cli_command_t * cmd)
 {
@@ -436,9 +436,9 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
     }
 
   if (!name)
-    name = gtpdp_name_to_labels(label);
+    name = gtp_up_name_to_labels(label);
 
-  rv = vnet_gtpdp_nwi_set_addr(name, &ip, teid, mask, add);
+  rv = vnet_gtp_up_nwi_set_addr(name, &ip, teid, mask, add);
 
   switch (rv)
     {
@@ -455,7 +455,7 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
 
     default:
       error = clib_error_return
-	(0, "vnet_gtpdp_nwi_set_addr returned %d", rv);
+	(0, "vnet_gtp_up_nwi_set_addr returned %d", rv);
       break;
     }
 
@@ -467,19 +467,19 @@ gtpdp_nwi_set_addr_command_fn (vlib_main_t * vm,
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (gtpdp_nwi_set_addr_command, static) =
+VLIB_CLI_COMMAND (gtp_up_nwi_set_addr_command, static) =
 {
-  .path = "gtpdp nwi set gtpu address",
+  .path = "gtp-up nwi set gtpu address",
   .short_help =
-  "gtpdp nwi set gtpu address [name <name> | dns <label>] <address> [teid <teid>/<mask>] [del]",
-  .function = gtpdp_nwi_set_addr_command_fn,
+  "gtp-up nwi set gtpu address [name <name> | dns <label>] <address> [teid <teid>/<mask>] [del]",
+  .function = gtp_up_nwi_set_addr_command_fn,
 };
 /* *INDENT-ON* */
 
-int vnet_gtpdp_nwi_set_intf_role(u8 * name, u8 intf, u32 sw_if_index, u8 add)
+int vnet_gtp_up_nwi_set_intf_role(u8 * name, u8 intf, u32 sw_if_index, u8 add)
 {
-  gtpdp_main_t * gtm = &gtpdp_main;
-  gtpdp_nwi_t * nwi;
+  gtp_up_main_t * gtm = &gtp_up_main;
+  gtp_up_nwi_t * nwi;
   u32 nwi_index;
   uword *p;
 
@@ -520,7 +520,7 @@ int vnet_gtpdp_nwi_set_intf_role(u8 * name, u8 intf, u32 sw_if_index, u8 add)
 }
 
 clib_error_t *
-gtpdp_nwi_set_intf_role_command_fn (vlib_main_t * vm,
+gtp_up_nwi_set_intf_role_command_fn (vlib_main_t * vm,
 				    unformat_input_t * main_input,
 				    vlib_cli_command_t * cmd)
 {
@@ -585,9 +585,9 @@ gtpdp_nwi_set_intf_role_command_fn (vlib_main_t * vm,
     }
 
   if (!name)
-    name = gtpdp_name_to_labels(label);
+    name = gtp_up_name_to_labels(label);
 
-  rv = vnet_gtpdp_nwi_set_intf_role(name, intf, sw_if_index, add);
+  rv = vnet_gtp_up_nwi_set_intf_role(name, intf, sw_if_index, add);
 
   switch (rv)
     {
@@ -600,7 +600,7 @@ gtpdp_nwi_set_intf_role_command_fn (vlib_main_t * vm,
 
     default:
       error = clib_error_return
-	(0, "vnet_gtpdp_nwi_set_intf_role returned %d", rv);
+	(0, "vnet_gtp_up_nwi_set_intf_role returned %d", rv);
       break;
     }
 
@@ -612,25 +612,25 @@ gtpdp_nwi_set_intf_role_command_fn (vlib_main_t * vm,
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (gtpdp_nwi_set_intf_role_command, static) =
+VLIB_CLI_COMMAND (gtp_up_nwi_set_intf_role_command, static) =
 {
-  .path = "gtpdp nwi set interface type",
+  .path = "gtp-up nwi set interface type",
   .short_help =
-  "gtpdp nwi set interface type [name <name> | dns <label>] [access | core | sgi | cp] [interface <interface> | sw_if_index <inde>] [del]",
-  .function = gtpdp_nwi_set_intf_role_command_fn,
+  "gtp-up nwi set interface type [name <name> | dns <label>] [access | core | sgi | cp] [interface <interface> | sw_if_index <inde>] [del]",
+  .function = gtp_up_nwi_set_intf_role_command_fn,
 };
 /* *INDENT-ON* */
 
 static clib_error_t *
-gtpdp_show_nwi_command_fn (vlib_main_t * vm,
+gtp_up_show_nwi_command_fn (vlib_main_t * vm,
 			   unformat_input_t * main_input,
 			   vlib_cli_command_t * cmd)
 {
   unformat_input_t _line_input, *line_input = &_line_input;
   vnet_main_t *vnm = vnet_get_main ();
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   clib_error_t * error = NULL;
-  gtpdp_nwi_t * nwi;
+  gtp_up_nwi_t * nwi;
   u8 *label = NULL;
   u8 *name = NULL;
 
@@ -653,11 +653,11 @@ gtpdp_show_nwi_command_fn (vlib_main_t * vm,
     }
 
   if (!name && label)
-    name = gtpdp_name_to_labels(label);
+    name = gtp_up_name_to_labels(label);
 
   pool_foreach (nwi, gtm->nwis,
     ({
-      gtpdp_nwi_ip_res_t * ip_res;
+      gtp_up_nwi_ip_res_t * ip_res;
 
       if (name && !vec_is_equal(name, nwi->name))
 	continue;
@@ -693,27 +693,27 @@ done:
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (gtpdp_show_nwi_command, static) =
+VLIB_CLI_COMMAND (gtp_up_show_nwi_command, static) =
 {
-  .path = "show gtpdp nwi",
+  .path = "show gtp-up nwi",
   .short_help =
-  "show gtpdp nwi",
-  .function = gtpdp_show_nwi_command_fn,
+  "show gtp-up nwi",
+  .function = gtp_up_show_nwi_command_fn,
 };
 /* *INDENT-ON* */
 
 static clib_error_t *
-gtpdp_show_session_command_fn (vlib_main_t * vm,
+gtp_up_show_session_command_fn (vlib_main_t * vm,
 			       unformat_input_t * main_input,
 			       vlib_cli_command_t * cmd)
 {
   unformat_input_t _line_input, *line_input = &_line_input;
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   clib_error_t * error = NULL;
   u64 cp_seid, up_seid;
   ip46_address_t cp_ip;
   u8 has_cp_f_seid = 0, has_up_seid = 0;
-  gtpdp_session_t *sess;
+  gtp_up_session_t *sess;
 
   if (unformat_user (main_input, unformat_line_input, line_input))
     {
@@ -766,19 +766,19 @@ gtpdp_show_session_command_fn (vlib_main_t * vm,
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (gtpdp_show_session_command, static) =
+VLIB_CLI_COMMAND (gtp_up_show_session_command, static) =
 {
-  .path = "show gtpdp session",
+  .path = "show gtp-up session",
   .short_help =
-  "show gtpdp session",
-  .function = gtpdp_show_session_command_fn,
+  "show gtp-up session",
+  .function = gtp_up_show_session_command_fn,
 };
 /* *INDENT-ON* */
 
-static clib_error_t * gtpdp_init (vlib_main_t * vm)
+static clib_error_t * gtp_up_init (vlib_main_t * vm)
 {
-  gtpdp_main_t * sm = &gtpdp_main;
-  char *argv[] = { "gtpdp", "--no-huge", "--no-pci", NULL };
+  gtp_up_main_t * sm = &gtp_up_main;
+  char *argv[] = { "gtp_up", "--no-huge", "--no-pci", NULL };
   int ret;
 
   sm->vnet_main = vnet_get_main ();
@@ -794,11 +794,11 @@ static clib_error_t * gtpdp_init (vlib_main_t * vm)
 
   /* initialize the IP/TEID hash's */
   clib_bihash_init_8_8 (&sm->v4_tunnel_by_key,
-			"gtpdp_v4_tunnel_by_key", GTPDP_MAPPING_BUCKETS,
-			GTPDP_MAPPING_MEMORY_SIZE);
+			"gtp_up_v4_tunnel_by_key", GTP_UP_MAPPING_BUCKETS,
+			GTP_UP_MAPPING_MEMORY_SIZE);
   clib_bihash_init_24_8 (&sm->v6_tunnel_by_key,
-			"gtpdp_v6_tunnel_by_key", GTPDP_MAPPING_BUCKETS,
-			GTPDP_MAPPING_MEMORY_SIZE);
+			"gtp_up_v6_tunnel_by_key", GTP_UP_MAPPING_BUCKETS,
+			GTP_UP_MAPPING_MEMORY_SIZE);
 
   sm->peer_index_by_ip = hash_create_mem (0, sizeof (ip46_address_fib_t), sizeof (uword));
 
@@ -815,18 +815,18 @@ static clib_error_t * gtpdp_init (vlib_main_t * vm)
   udp_register_dst_port (vm, UDP_DST_PORT_GTPU6,
 			 gtpu6_input_node.index, /* is_ip4 */ 0);
 
-  sm->fib_node_type = fib_node_register_new_type (&gtpdp_vft);
+  sm->fib_node_type = fib_node_register_new_type (&gtp_up_vft);
 
   return 0;
 }
 
-VLIB_INIT_FUNCTION (gtpdp_init);
+VLIB_INIT_FUNCTION (gtp_up_init);
 
 /* *INDENT-OFF* */
-VNET_FEATURE_INIT (gtpdp, static) =
+VNET_FEATURE_INIT (gtp_up, static) =
 {
   .arc_name = "device-input",
-  .node_name = "gtpdp",
+  .node_name = "gtp_up",
   .runs_before = VNET_FEATURES ("ethernet-input"),
 };
 /* *INDENT-ON */

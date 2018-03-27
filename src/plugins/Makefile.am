@@ -46,8 +46,8 @@ if ENABLE_GTPU_PLUGIN
 include gtpu.am
 endif
 
-#if ENABLE_GTPDP_PLUGIN
-include gtpdp.am
+#if ENABLE_GTP_UP_PLUGIN
+include gtp_up.am
 #endif
 
 if ENABLE_ILA_PLUGIN

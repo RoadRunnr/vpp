@@ -27,41 +27,41 @@
 #include <vnet/ip/ip.h>
 #include <vnet/ethernet/ethernet.h>
 
-#include <gtpdp/gtpdp.h>
-#include <gtpdp/gtpdp_sx.h>
+#include <gtp-up/gtp_up.h>
+#include <gtp-up/gtp_up_sx.h>
 
 /* Statistics (not all errors) */
-#define foreach_gtpdp_classify_error    \
+#define foreach_gtp_up_classify_error    \
 _(CLASSIFY, "good packets classify")
 
-static char * gtpdp_classify_error_strings[] = {
+static char * gtp_up_classify_error_strings[] = {
 #define _(sym,string) string,
-  foreach_gtpdp_classify_error
+  foreach_gtp_up_classify_error
 #undef _
 };
 
 typedef enum {
-#define _(sym,str) GTPDP_CLASSIFY_ERROR_##sym,
-    foreach_gtpdp_classify_error
+#define _(sym,str) GTP_UP_CLASSIFY_ERROR_##sym,
+    foreach_gtp_up_classify_error
 #undef _
-    GTPDP_CLASSIFY_N_ERROR,
-} gtpdp_classify_error_t;
+    GTP_UP_CLASSIFY_N_ERROR,
+} gtp_up_classify_error_t;
 
-#define foreach_gtpdp_classify_next	\
+#define foreach_gtp_up_classify_next	\
   _(DROP, "error-drop")			\
-  _(GTPDP4_ENCAP, "gtpdp4-encap")       \
-  _(GTPDP6_ENCAP, "gtpdp6-encap")	\
+  _(GTP_UP4_ENCAP, "gtp_up4-encap")       \
+  _(GTP_UP6_ENCAP, "gtp_up6-encap")	\
   _(IP4_INPUT, "ip4-input")		\
   _(IP6_INPUT, "ip6-input")
 
 typedef enum {
-  GTPDP_CLASSIFY_NEXT_DROP,
-  GTPDP_CLASSIFY_NEXT_GTPDP4_ENCAP,
-  GTPDP_CLASSIFY_NEXT_GTPDP6_ENCAP,
-  GTPDP_CLASSIFY_NEXT_IP4_INPUT,
-  GTPDP_CLASSIFY_NEXT_IP6_INPUT,
-  GTPDP_CLASSIFY_N_NEXT,
-} gtpdp_classify_next_t;
+  GTP_UP_CLASSIFY_NEXT_DROP,
+  GTP_UP_CLASSIFY_NEXT_GTP_UP4_ENCAP,
+  GTP_UP_CLASSIFY_NEXT_GTP_UP6_ENCAP,
+  GTP_UP_CLASSIFY_NEXT_IP4_INPUT,
+  GTP_UP_CLASSIFY_NEXT_IP6_INPUT,
+  GTP_UP_CLASSIFY_N_NEXT,
+} gtp_up_classify_next_t;
 
 typedef struct {
   u32 session_index;
@@ -69,17 +69,17 @@ typedef struct {
   u32 pdr_id;
   u32 far_id;
   u8 packet_data[64 - 1 * sizeof (u32)];
-} gtpdp_classify_trace_t;
+} gtp_up_classify_trace_t;
 
-u8 * format_gtpdp_classify_trace (u8 * s, va_list * args)
+u8 * format_gtp_up_classify_trace (u8 * s, va_list * args)
 {
   CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
   CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
-  gtpdp_classify_trace_t * t
-    = va_arg (*args, gtpdp_classify_trace_t *);
+  gtp_up_classify_trace_t * t
+    = va_arg (*args, gtp_up_classify_trace_t *);
   u32 indent = format_get_indent (s);
 
-  s = format (s, "gtpdp_session%d seid %d pdr %d far %d\n%U%U",
+  s = format (s, "gtp_up_session%d seid %d pdr %d far %d\n%U%U",
 	      t->session_index, t->cp_f_seid, t->pdr_id, t->far_id,
 	      format_white_space, indent,
 	      format_ip4_header, t->packet_data, sizeof (t->packet_data));
@@ -87,11 +87,11 @@ u8 * format_gtpdp_classify_trace (u8 * s, va_list * args)
 }
 
 static uword
-gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
+gtp_up_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		vlib_frame_t * from_frame, int is_ip4)
 {
   u32 n_left_from, next_index, * from, * to_next;
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   vnet_main_t * vnm = gtm->vnet_main;
   vnet_interface_main_t * im = &vnm->interface_main;
 
@@ -102,7 +102,7 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
   u32 stats_sw_if_index, stats_n_packets, stats_n_bytes;
   u32 sw_if_index = 0;
   u32 next = 0;
-  gtpdp_session_t * sess = NULL;
+  gtp_up_session_t * sess = NULL;
   u32 sidx = 0;
   u32 len;
   struct rules *active;
@@ -118,8 +118,8 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 
   while (n_left_from > 0)
     {
-      gtpdp_pdr_t * pdr = NULL;
-      gtpdp_far_t * far = NULL;
+      gtp_up_pdr_t * pdr = NULL;
+      gtp_up_far_t * far = NULL;
       u32 n_left_to_next;
       vlib_buffer_t * b;
       u8 direction;
@@ -144,7 +144,7 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	  sidx = vnet_buffer (b)->gtpu.session_index;
 	  sess = pool_elt_at_index (gtm->sessions, sidx);
 
-	  next = GTPDP_CLASSIFY_NEXT_DROP;
+	  next = GTP_UP_CLASSIFY_NEXT_DROP;
 	  active = sx_get_rules(sess, SX_ACTIVE);
 	  direction = vnet_buffer (b)->gtpu.src_intf == INTF_ACCESS ? UL_SDF : DL_SDF;
 
@@ -251,8 +251,8 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		  if (PREDICT_FALSE ((vnet_buffer (b)->gtpu.flags & BUFFER_HDR_MASK) !=
 				     BUFFER_GTP_UDP_IP4))
 		    {
-		      next = GTPDP_CLASSIFY_NEXT_DROP;
-		      // error = GTPDP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
+		      next = GTP_UP_CLASSIFY_NEXT_DROP;
+		      // error = GTP_UP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
 		      goto trace;
 		    }
 		  vlib_buffer_advance (b, vnet_buffer (b)->gtpu.data_offset);
@@ -262,8 +262,8 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		  if (PREDICT_FALSE ((vnet_buffer (b)->gtpu.flags & BUFFER_HDR_MASK) !=
 				     BUFFER_GTP_UDP_IP6))
 		    {
-		      next = GTPDP_CLASSIFY_NEXT_DROP;
-		      // error = GTPDP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
+		      next = GTP_UP_CLASSIFY_NEXT_DROP;
+		      // error = GTP_UP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
 		      goto trace;
 		    }
 		  vlib_buffer_advance (b, vnet_buffer (b)->gtpu.data_offset);
@@ -273,8 +273,8 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		  if (PREDICT_FALSE ((vnet_buffer (b)->gtpu.flags & BUFFER_HDR_MASK) !=
 				     BUFFER_UDP_IP4))
 		    {
-		      next = GTPDP_CLASSIFY_NEXT_DROP;
-		      // error = GTPDP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
+		      next = GTP_UP_CLASSIFY_NEXT_DROP;
+		      // error = GTP_UP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
 		      goto trace;
 		    }
 		  vlib_buffer_advance (b, sizeof(ip4_header_t) + sizeof(udp_header_t));
@@ -284,8 +284,8 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 		  if (PREDICT_FALSE ((vnet_buffer (b)->gtpu.flags & BUFFER_HDR_MASK) !=
 				     BUFFER_UDP_IP6))
 		    {
-		      next = GTPDP_CLASSIFY_NEXT_DROP;
-		      // error = GTPDP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
+		      next = GTP_UP_CLASSIFY_NEXT_DROP;
+		      // error = GTP_UP_CLASSIFY_ERROR_INVALID_OUTER_HEADER;
 		      goto trace;
 		    }
 		  vlib_buffer_advance (b, sizeof(ip6_header_t) + sizeof(udp_header_t));
@@ -296,27 +296,27 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	      switch (far->forward.outer_header_creation)
 		{
 		case GTP_U_UDP_IPv4:
-		  next = GTPDP_CLASSIFY_NEXT_GTPDP4_ENCAP;
+		  next = GTP_UP_CLASSIFY_NEXT_GTP_UP4_ENCAP;
 		  break;
 
 		case GTP_U_UDP_IPv6:
-		  next = GTPDP_CLASSIFY_NEXT_GTPDP6_ENCAP;
+		  next = GTP_UP_CLASSIFY_NEXT_GTP_UP6_ENCAP;
 		  break;
 
 		case UDP_IPv4:
-		  next = GTPDP_CLASSIFY_NEXT_DROP;
-		  // error = GTPDP_CLASSIFY_ERROR_NOT_YET;
+		  next = GTP_UP_CLASSIFY_NEXT_DROP;
+		  // error = GTP_UP_CLASSIFY_ERROR_NOT_YET;
 		  goto trace;
 
 		case UDP_IPv6:
-		  next = GTPDP_CLASSIFY_NEXT_DROP;
-		  // error = GTPDP_CLASSIFY_ERROR_NOT_YET;
+		  next = GTP_UP_CLASSIFY_NEXT_DROP;
+		  // error = GTP_UP_CLASSIFY_ERROR_NOT_YET;
 		  goto trace;
 
 		default:
 		  ip4 = (ip4_header_t *)vlib_buffer_get_current(b);
 		  next = ((ip4->ip_version_and_header_length & 0xF0) == 0x40) ?
-		    GTPDP_CLASSIFY_NEXT_IP4_INPUT : GTPDP_CLASSIFY_NEXT_IP6_INPUT;
+		    GTP_UP_CLASSIFY_NEXT_IP4_INPUT : GTP_UP_CLASSIFY_NEXT_IP6_INPUT;
 		  break;
 		}
 
@@ -356,7 +356,7 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 	trace:
 	  if (PREDICT_FALSE(b->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_classify_trace_t *tr =
+	      gtp_up_classify_trace_t *tr =
 		vlib_add_trace (vm, node, b, sizeof (*tr));
 	      tr->session_index = sidx;
 	      tr->cp_f_seid = sess->cp_f_seid;
@@ -378,53 +378,53 @@ gtpdp_classify (vlib_main_t * vm, vlib_node_runtime_t * node,
 }
 
 static uword
-gtpdp_ip4_classify (vlib_main_t * vm,
+gtp_up_ip4_classify (vlib_main_t * vm,
 		    vlib_node_runtime_t * node,
 		    vlib_frame_t * from_frame)
 {
-	return gtpdp_classify(vm, node, from_frame, /* is_ip4 */ 1);
+	return gtp_up_classify(vm, node, from_frame, /* is_ip4 */ 1);
 }
 
 static uword
-gtpdp_ip6_classify (vlib_main_t * vm,
+gtp_up_ip6_classify (vlib_main_t * vm,
 		    vlib_node_runtime_t * node,
 		    vlib_frame_t * from_frame)
 {
-	return gtpdp_classify(vm, node, from_frame, /* is_ip4 */ 0);
+	return gtp_up_classify(vm, node, from_frame, /* is_ip4 */ 0);
 }
 
-VLIB_REGISTER_NODE (gtpdp_ip4_classify_node) = {
-  .function = gtpdp_ip4_classify,
-  .name = "gtpdp-ip4-classify",
+VLIB_REGISTER_NODE (gtp_up_ip4_classify_node) = {
+  .function = gtp_up_ip4_classify,
+  .name = "gtp_up-ip4-classify",
   .vector_size = sizeof (u32),
-  .format_trace = format_gtpdp_classify_trace,
+  .format_trace = format_gtp_up_classify_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN(gtpdp_classify_error_strings),
-  .error_strings = gtpdp_classify_error_strings,
-  .n_next_nodes = GTPDP_CLASSIFY_N_NEXT,
+  .n_errors = ARRAY_LEN(gtp_up_classify_error_strings),
+  .error_strings = gtp_up_classify_error_strings,
+  .n_next_nodes = GTP_UP_CLASSIFY_N_NEXT,
   .next_nodes = {
-#define _(s,n) [GTPDP_CLASSIFY_NEXT_##s] = n,
-    foreach_gtpdp_classify_next
+#define _(s,n) [GTP_UP_CLASSIFY_NEXT_##s] = n,
+    foreach_gtp_up_classify_next
 #undef _
   },
 };
 
-VLIB_NODE_FUNCTION_MULTIARCH (gtpdp_ip4_classify_node, gtpdp_ip4_classify)
+VLIB_NODE_FUNCTION_MULTIARCH (gtp_up_ip4_classify_node, gtp_up_ip4_classify)
 
-VLIB_REGISTER_NODE (gtpdp_ip6_classify_node) = {
-  .function = gtpdp_ip6_classify,
-  .name = "gtpdp-ip6-classify",
+VLIB_REGISTER_NODE (gtp_up_ip6_classify_node) = {
+  .function = gtp_up_ip6_classify,
+  .name = "gtp_up-ip6-classify",
   .vector_size = sizeof (u32),
-  .format_trace = format_gtpdp_classify_trace,
+  .format_trace = format_gtp_up_classify_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN(gtpdp_classify_error_strings),
-  .error_strings = gtpdp_classify_error_strings,
-  .n_next_nodes = GTPDP_CLASSIFY_N_NEXT,
+  .n_errors = ARRAY_LEN(gtp_up_classify_error_strings),
+  .error_strings = gtp_up_classify_error_strings,
+  .n_next_nodes = GTP_UP_CLASSIFY_N_NEXT,
   .next_nodes = {
-#define _(s,n) [GTPDP_CLASSIFY_NEXT_##s] = n,
-    foreach_gtpdp_classify_next
+#define _(s,n) [GTP_UP_CLASSIFY_NEXT_##s] = n,
+    foreach_gtp_up_classify_next
 #undef _
   },
 };
 
-VLIB_NODE_FUNCTION_MULTIARCH (gtpdp_ip6_classify_node, gtpdp_ip6_classify)
+VLIB_NODE_FUNCTION_MULTIARCH (gtp_up_ip6_classify_node, gtp_up_ip6_classify)

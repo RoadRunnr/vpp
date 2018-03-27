@@ -36,11 +36,11 @@
 #include <netinet/ip.h>
 
 #include "pfcp.h"
-#include "gtpdp.h"
-#include "gtpdp_sx.h"
-#include "gtpdp_sx_api.h"
+#include "gtp_up.h"
+#include "gtp_up_sx.h"
+#include "gtp_up_sx_api.h"
 
-gtpdp_main_t gtpdp_main;
+gtp_up_main_t gtp_up_main;
 
 #define SESS_CREATE 0
 #define SESS_MODIFY 1
@@ -57,7 +57,7 @@ gtpdp_main_t gtpdp_main;
 static void sx_add_del_vrf_ip(const void *vrf_ip, void *si, int is_add);
 static void sx_add_del_v4_teid(const void *teid, void *si, int is_add);
 static void sx_add_del_v6_teid(const void *teid, void *si, int is_add);
-static void sx_acl_free(gtpdp_acl_ctx_t *ctx);
+static void sx_acl_free(gtp_up_acl_ctx_t *ctx);
 
 /* DPDK ACL defines */
 
@@ -252,14 +252,14 @@ RTE_ACL_RULE_DEF(acl6_rule, RTE_DIM(ipv6_defs));
 	bsearch((k), (v), vec_len((v)), sizeof((v)[0]), compar)
 
 static u8 *
-format_gtpdp_name (u8 * s, va_list * args)
+format_gtp_up_name (u8 * s, va_list * args)
 {
   u32 dev_instance = va_arg (*args, u32);
-  return format (s, "gtpdp_session%d", dev_instance);
+  return format (s, "gtp_up_session%d", dev_instance);
 }
 
 static clib_error_t *
-gtpdp_interface_admin_up_down (vnet_main_t * vnm, u32 hw_if_index, u32 flags)
+gtp_up_interface_admin_up_down (vnet_main_t * vnm, u32 hw_if_index, u32 flags)
 {
   u32 hw_flags = (flags & VNET_SW_INTERFACE_FLAG_ADMIN_UP) ?
     VNET_HW_INTERFACE_FLAG_LINK_UP : 0;
@@ -271,9 +271,9 @@ gtpdp_interface_admin_up_down (vnet_main_t * vnm, u32 hw_if_index, u32 flags)
 /* *INDENT-OFF* */
 VNET_DEVICE_CLASS (gtpu_device_class,static) = {
   .name = "GTPU",
-  .format_device_name = format_gtpdp_name,
-  .format_tx_trace = format_gtpdp_encap_trace,
-  .admin_up_down_function = gtpdp_interface_admin_up_down,
+  .format_device_name = format_gtp_up_name,
+  .format_tx_trace = format_gtp_up_encap_trace,
+  .admin_up_down_function = gtp_up_interface_admin_up_down,
 };
 /* *INDENT-ON* */
 
@@ -307,8 +307,8 @@ VNET_HW_INTERFACE_CLASS (gtpu_hw_class) =
 
 static int sx_pdr_id_compare(const void *p1, const void *p2)
 {
-	const gtpdp_pdr_t *a = (gtpdp_pdr_t *)p1;
-	const gtpdp_pdr_t *b = (gtpdp_pdr_t *)p2;
+	const gtp_up_pdr_t *a = (gtp_up_pdr_t *)p1;
+	const gtp_up_pdr_t *b = (gtp_up_pdr_t *)p2;
 
 	/* compare rule_ids */
 	return intcmp(a->id, b->id);
@@ -351,8 +351,8 @@ static int sx_pdr_id_compare(const void *p1, const void *p2)
 
 static int sx_far_id_compare(const void *p1, const void *p2)
 {
-	const gtpdp_far_t *a = (gtpdp_far_t *)p1;
-	const gtpdp_far_t *b = (gtpdp_far_t *)p2;
+	const gtp_up_far_t *a = (gtp_up_far_t *)p1;
+	const gtp_up_far_t *b = (gtp_up_far_t *)p2;
 
 	/* compare rule_ids */
 	return intcmp(a->id, b->id);
@@ -360,16 +360,16 @@ static int sx_far_id_compare(const void *p1, const void *p2)
 
 static int sx_urr_id_compare(const void *p1, const void *p2)
 {
-	const gtpdp_urr_t *a = (gtpdp_urr_t *)p1;
-	const gtpdp_urr_t *b = (gtpdp_urr_t *)p2;
+	const gtp_up_urr_t *a = (gtp_up_urr_t *)p1;
+	const gtp_up_urr_t *b = (gtp_up_urr_t *)p2;
 
 	/* compare rule_ids */
 	return intcmp(a->id, b->id);
 }
 
-gtpdp_node_assoc_t *sx_get_association(pfcp_node_id_t *node_id)
+gtp_up_node_assoc_t *sx_get_association(pfcp_node_id_t *node_id)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   uword *p = NULL;
 
   switch (node_id->type)
@@ -390,10 +390,10 @@ gtpdp_node_assoc_t *sx_get_association(pfcp_node_id_t *node_id)
   return pool_elt_at_index (gtm->nodes, p[0]);
 }
 
-gtpdp_node_assoc_t *sx_new_association(pfcp_node_id_t *node_id)
+gtp_up_node_assoc_t *sx_new_association(pfcp_node_id_t *node_id)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
-  gtpdp_node_assoc_t *n;
+  gtp_up_main_t *gtm = &gtp_up_main;
+  gtp_up_node_assoc_t *n;
 
   pool_get_aligned (gtm->nodes, n, CLIB_CACHE_LINE_BYTES);
   memset (n, 0, sizeof (*n));
@@ -414,9 +414,9 @@ gtpdp_node_assoc_t *sx_new_association(pfcp_node_id_t *node_id)
   return n;
 }
 
-void sx_release_association(gtpdp_node_assoc_t *n)
+void sx_release_association(gtp_up_node_assoc_t *n)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
 
   switch (n->node_id.type)
     {
@@ -434,14 +434,14 @@ void sx_release_association(gtpdp_node_assoc_t *n)
   pool_put(gtm->nodes, n);
 }
 
-gtpdp_session_t *sx_create_session(uint64_t cp_f_seid, u64 session_handle)
+gtp_up_session_t *sx_create_session(uint64_t cp_f_seid, u64 session_handle)
 {
-  vnet_main_t *vnm = gtpdp_main.vnet_main;
+  vnet_main_t *vnm = gtp_up_main.vnet_main;
   l2input_main_t *l2im = &l2input_main;
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   u32 hw_if_index = ~0;
   u32 sw_if_index = ~0;
-  gtpdp_session_t *sx;
+  gtp_up_session_t *sx;
 
   pool_get_aligned (gtm->sessions, sx, CLIB_CACHE_LINE_BYTES);
   memset (sx, 0, sizeof (*sx));
@@ -484,7 +484,7 @@ gtpdp_session_t *sx_create_session(uint64_t cp_f_seid, u64 session_handle)
     }
 
   /* Set GTP-U tunnel output node */
-  vnet_set_interface_output_node (vnm, hw_if_index, gtpdp_if_input_node.index);
+  vnet_set_interface_output_node (vnm, hw_if_index, gtp_up_if_input_node.index);
 
   sx->hw_if_index = hw_if_index;
   sx->sw_if_index = sw_if_index = hi->sw_if_index;
@@ -515,13 +515,13 @@ gtpdp_session_t *sx_create_session(uint64_t cp_f_seid, u64 session_handle)
   return sx;
 }
 
-void sx_update_session(gtpdp_session_t *sx)
+void sx_update_session(gtp_up_session_t *sx)
 {
 	// TODO: do we need some kind of update lock ?
 }
 
 static void
-gtpdp_peer_restack_dpo (gtpdp_peer_t * p)
+gtp_up_peer_restack_dpo (gtp_up_peer_t * p)
 {
   dpo_id_t dpo = DPO_INVALID;
 
@@ -530,11 +530,11 @@ gtpdp_peer_restack_dpo (gtpdp_peer_t * p)
   dpo_reset (&dpo);
 }
 
-static gtpdp_peer_t *
-gtpdp_peer_from_fib_node (fib_node_t * node)
+static gtp_up_peer_t *
+gtp_up_peer_from_fib_node (fib_node_t * node)
 {
-  return ((gtpdp_peer_t *) (((char *) node) -
-			    STRUCT_OFFSET_OF (gtpdp_peer_t, node)));
+  return ((gtp_up_peer_t *) (((char *) node) -
+			    STRUCT_OFFSET_OF (gtp_up_peer_t, node)));
 }
 
 /**
@@ -542,9 +542,9 @@ gtpdp_peer_from_fib_node (fib_node_t * node)
  * Here we will restack the new dpo of GTPU DIP to encap node.
  */
 static fib_node_back_walk_rc_t
-gtpdp_peer_back_walk (fib_node_t * node, fib_node_back_walk_ctx_t * ctx)
+gtp_up_peer_back_walk (fib_node_t * node, fib_node_back_walk_ctx_t * ctx)
 {
-  gtpdp_peer_restack_dpo (gtpdp_peer_from_fib_node (node));
+  gtp_up_peer_restack_dpo (gtp_up_peer_from_fib_node (node));
   return (FIB_NODE_BACK_WALK_CONTINUE);
 }
 
@@ -552,10 +552,10 @@ gtpdp_peer_back_walk (fib_node_t * node, fib_node_back_walk_ctx_t * ctx)
  * Function definition to get a FIB node from its index
  */
 static fib_node_t *
-gtpdp_peer_fib_node_get (fib_node_index_t index)
+gtp_up_peer_fib_node_get (fib_node_index_t index)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
-  gtpdp_peer_t *p;
+  gtp_up_main_t *gtm = &gtp_up_main;
+  gtp_up_peer_t *p;
 
   p = pool_elt_at_index (gtm->peers, index);
 
@@ -566,7 +566,7 @@ gtpdp_peer_fib_node_get (fib_node_index_t index)
  * Function definition to inform the FIB node that its last lock has gone.
  */
 static void
-gtpdp_peer_last_lock_gone (fib_node_t * node)
+gtp_up_peer_last_lock_gone (fib_node_t * node)
 {
   /*
    * The GTP peer is a root of the graph. As such
@@ -579,16 +579,16 @@ gtpdp_peer_last_lock_gone (fib_node_t * node)
  * Virtual function table registered by GTPU tunnels
  * for participation in the FIB object graph.
  */
-const fib_node_vft_t gtpdp_vft = {
-  .fnv_get = gtpdp_peer_fib_node_get,
-  .fnv_last_lock = gtpdp_peer_last_lock_gone,
-  .fnv_back_walk = gtpdp_peer_back_walk,
+const fib_node_vft_t gtp_up_vft = {
+  .fnv_get = gtp_up_peer_fib_node_get,
+  .fnv_last_lock = gtp_up_peer_last_lock_gone,
+  .fnv_back_walk = gtp_up_peer_back_walk,
 };
 
 static u32 nwi_to_vrf(uword nwi)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
-  gtpdp_nwi_t * n;
+  gtp_up_main_t *gtm = &gtp_up_main;
+  gtp_up_nwi_t * n;
 
   if (!pool_is_free_index (gtm->nwis, nwi))
     {
@@ -602,10 +602,10 @@ static u32 nwi_to_vrf(uword nwi)
 static uword
 peer_addr_ref (ip46_address_t * ip, uword nwi)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   ip46_address_fib_t key;
   u32 encap_fib_index;
-  gtpdp_peer_t * p;
+  gtp_up_peer_t * p;
   uword *peer;
   int is_ip4;
   u32 vrf;
@@ -631,12 +631,12 @@ peer_addr_ref (ip46_address_t * ip, uword nwi)
 
   if (is_ip4)
     {
-      p->encap_index = gtpdp4_encap_node.index;
+      p->encap_index = gtp_up4_encap_node.index;
       p->forw_type = FIB_FORW_CHAIN_TYPE_UNICAST_IP4;
     }
   else
     {
-      p->encap_index = gtpdp6_encap_node.index;
+      p->encap_index = gtp_up6_encap_node.index;
       p->forw_type = FIB_FORW_CHAIN_TYPE_UNICAST_IP6;
     }
 
@@ -651,7 +651,7 @@ peer_addr_ref (ip46_address_t * ip, uword nwi)
      FIB_ENTRY_FLAG_NONE);
   p->sibling_index = fib_entry_child_add
     (p->fib_entry_index, gtm->fib_node_type, p - gtm->peers);
-  gtpdp_peer_restack_dpo (p);
+  gtp_up_peer_restack_dpo (p);
 
   return p - gtm->peers;
 }
@@ -659,10 +659,10 @@ peer_addr_ref (ip46_address_t * ip, uword nwi)
 static uword
 peer_addr_unref (ip46_address_t * ip, uword nwi)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   ip46_address_fib_t key;
   u32 encap_fib_index;
-  gtpdp_peer_t * p;
+  gtp_up_peer_t * p;
   uword *peer;
   int is_ip4;
   u32 vrf;
@@ -691,7 +691,7 @@ peer_addr_unref (ip46_address_t * ip, uword nwi)
   return 0;
 }
 
-static int make_pending_pdr(gtpdp_session_t *sx)
+static int make_pending_pdr(gtp_up_session_t *sx)
 {
   struct rules *pending = sx_get_rules(sx, SX_PENDING);
   struct rules *active = sx_get_rules(sx, SX_ACTIVE);
@@ -711,7 +711,7 @@ static int make_pending_pdr(gtpdp_session_t *sx)
   return 0;
 }
 
-static int make_pending_far(gtpdp_session_t *sx)
+static int make_pending_far(gtp_up_session_t *sx)
 {
   struct rules *pending = sx_get_rules(sx, SX_PENDING);
   struct rules *active = sx_get_rules(sx, SX_ACTIVE);
@@ -725,11 +725,11 @@ static int make_pending_far(gtpdp_session_t *sx)
   return 0;
 }
 
-static int make_pending_urr(gtpdp_session_t *sx)
+static int make_pending_urr(gtp_up_session_t *sx)
 {
   struct rules *pending = sx_get_rules(sx, SX_PENDING);
   struct rules *active = sx_get_rules(sx, SX_ACTIVE);
-  gtpdp_urr_t *urr;
+  gtp_up_urr_t *urr;
 
   if (pending->urr)
     return 0;
@@ -747,12 +747,12 @@ static int make_pending_urr(gtpdp_session_t *sx)
   return 0;
 }
 
-static void sx_free_rules(gtpdp_session_t *sx, int rule)
+static void sx_free_rules(gtp_up_session_t *sx, int rule)
 {
   struct rules *rules = sx_get_rules(sx, rule);
-  gtpdp_pdr_t *pdr;
-  gtpdp_far_t *far;
-  gtpdp_urr_t *urr;
+  gtp_up_pdr_t *pdr;
+  gtp_up_far_t *far;
+  gtp_up_urr_t *urr;
 
   vec_foreach (pdr, rules->pdr)
     vec_free(pdr->urr_ids);
@@ -781,8 +781,8 @@ static void sx_free_rules(gtpdp_session_t *sx, int rule)
 
 static void rcu_free_sx_session_info(struct rcu_head *head)
 {
-  gtpdp_session_t *sx = caa_container_of(head, gtpdp_session_t, rcu_head);
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_session_t *sx = caa_container_of(head, gtp_up_session_t, rcu_head);
+  gtp_up_main_t *gtm = &gtp_up_main;
 
   for (size_t i = 0; i < ARRAY_LEN(sx->rules); i++)
     sx_free_rules(sx, i);
@@ -791,11 +791,11 @@ static void rcu_free_sx_session_info(struct rcu_head *head)
   pool_put (gtm->sessions, sx);
 }
 
-int sx_disable_session(gtpdp_session_t *sx)
+int sx_disable_session(gtp_up_session_t *sx)
 {
   struct rules *active = sx_get_rules(sx, SX_ACTIVE);
-  vnet_main_t *vnm = gtpdp_main.vnet_main;
-  gtpdp_main_t *gtm = &gtpdp_main;
+  vnet_main_t *vnm = gtp_up_main.vnet_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   ip46_address_fib_t *vrf_ip;
   gtpu4_tunnel_key_t *v4_teid;
   gtpu6_tunnel_key_t *v6_teid;
@@ -822,25 +822,25 @@ int sx_disable_session(gtpdp_session_t *sx)
   return 0;
 }
 
-void sx_free_session(gtpdp_session_t *sx)
+void sx_free_session(gtp_up_session_t *sx)
 {
 	call_rcu(&sx->rcu_head, rcu_free_sx_session_info);
 }
 
 #define sx_rule_vector_fns(t)						\
-gtpdp_##t##_t * sx_get_##t##_by_id(struct rules *rules,			\
-				   typeof (((gtpdp_##t##_t *)0)->id) t##_id) \
+gtp_up_##t##_t * sx_get_##t##_by_id(struct rules *rules,			\
+				   typeof (((gtp_up_##t##_t *)0)->id) t##_id) \
 {									\
-  gtpdp_##t##_t r = { .id = t##_id };					\
+  gtp_up_##t##_t r = { .id = t##_id };					\
 									\
   return vec_bsearch(&r, rules->t, sx_##t##_id_compare);		\
 }									\
 									\
-gtpdp_##t##_t *sx_get_##t(gtpdp_session_t *sx, int rule,		\
-			  typeof (((gtpdp_##t##_t *)0)->id) t##_id)	\
+gtp_up_##t##_t *sx_get_##t(gtp_up_session_t *sx, int rule,		\
+			  typeof (((gtp_up_##t##_t *)0)->id) t##_id)	\
 {									\
   struct rules *rules = sx_get_rules(sx, rule);				\
-  gtpdp_##t##_t r = { .id = t##_id };					\
+  gtp_up_##t##_t r = { .id = t##_id };					\
 									\
   if (rule == SX_PENDING)						\
     if (make_pending_##t(sx) != 0)					\
@@ -850,7 +850,7 @@ gtpdp_##t##_t *sx_get_##t(gtpdp_session_t *sx, int rule,		\
   return vec_bsearch(&r, rules->t, sx_##t##_id_compare);		\
 }									\
 									\
-int sx_create_##t(gtpdp_session_t *sx, gtpdp_##t##_t *t)		\
+int sx_create_##t(gtp_up_session_t *sx, gtp_up_##t##_t *t)		\
 {									\
   struct rules *rules = sx_get_rules(sx, SX_PENDING);			\
 									\
@@ -862,11 +862,11 @@ int sx_create_##t(gtpdp_session_t *sx, gtpdp_##t##_t *t)		\
   return 0;								\
 }									\
 									\
-int sx_delete_##t(gtpdp_session_t *sx, u32 t##_id)			\
+int sx_delete_##t(gtp_up_session_t *sx, u32 t##_id)			\
 {									\
   struct rules *rules = sx_get_rules(sx, SX_PENDING);			\
-  gtpdp_##t##_t r = { .id = t##_id };					\
-  gtpdp_##t##_t *p;							\
+  gtp_up_##t##_t r = { .id = t##_id };					\
+  gtp_up_##t##_t *p;							\
 									\
   if (make_pending_##t(sx) != 0)					\
     return -1;								\
@@ -882,7 +882,7 @@ sx_rule_vector_fns(pdr)
 sx_rule_vector_fns(far)
 sx_rule_vector_fns(urr)
 
-void sx_send_end_marker(gtpdp_session_t *sx, u16 id)
+void sx_send_end_marker(gtp_up_session_t *sx, u16 id)
 {
   struct rules *rules = sx_get_rules(sx, SX_PENDING);
 
@@ -914,7 +914,7 @@ static int v6_teid_cmp(const void *a, const void *b)
 static void sx_add_del_vrf_ip(const void *ip, void *si, int is_add)
 {
   const ip46_address_fib_t *vrf_ip = ip;
-  gtpdp_session_t *sess = si;
+  gtp_up_session_t *sess = si;
   fib_prefix_t pfx;
 
   memset (&pfx, 0, sizeof (pfx));
@@ -956,15 +956,15 @@ static void sx_add_del_vrf_ip(const void *ip, void *si, int is_add)
 
 static void sx_add_del_v4_teid(const void *teid, void *si, int is_add)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
-  gtpdp_session_t *sess = si;
+  gtp_up_main_t *gtm = &gtp_up_main;
+  gtp_up_session_t *sess = si;
   const gtpu4_tunnel_key_t *v4_teid = teid;
   clib_bihash_kv_8_8_t kv;
 
   kv.key = v4_teid->as_u64;
   kv.value = sess - gtm->sessions;
 
-  clib_warning("gtpdp_sx: is_add: %d, TEID: 0x%08x, IP:%U, Session:%p, idx: %p.",
+  clib_warning("gtp_up_sx: is_add: %d, TEID: 0x%08x, IP:%U, Session:%p, idx: %p.",
 	       is_add, v4_teid->teid,
 	       format_ip4_address, &v4_teid->dst, sess,
 	       sess - gtm->sessions);
@@ -974,8 +974,8 @@ static void sx_add_del_v4_teid(const void *teid, void *si, int is_add)
 
 static void sx_add_del_v6_teid(const void *teid, void *si, int is_add)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
-  gtpdp_session_t *sess = si;
+  gtp_up_main_t *gtm = &gtp_up_main;
+  gtp_up_session_t *sess = si;
   const gtpu6_tunnel_key_t *v6_teid = teid;
   clib_bihash_kv_24_8_t kv;
 
@@ -984,7 +984,7 @@ static void sx_add_del_v6_teid(const void *teid, void *si, int is_add)
   kv.key[2] = v6_teid->teid;
   kv.value = sess - gtm->sessions;
 
-  clib_warning("gtpdp_sx: is_add: %d, TEID: 0x%08x, IP:%U, Session:%p, idx: %p.",
+  clib_warning("gtp_up_sx: is_add: %d, TEID: 0x%08x, IP:%U, Session:%p, idx: %p.",
 	       is_add, v6_teid->teid,
 	       format_ip6_address, &v6_teid->dst, sess,
 	       sess - gtm->sessions);
@@ -1097,7 +1097,7 @@ static void rte_acl_set_proto(struct rte_acl_field * field, u8 proto, u8 mask)
   field->mask_range.u8 = mask;
 }
 
-static void acl_set_ue_ip4(struct acl4_rule *ip4, int field, const gtpdp_pdr_t *pdr)
+static void acl_set_ue_ip4(struct acl4_rule *ip4, int field, const gtp_up_pdr_t *pdr)
 {
   if ((pdr->pdi.fields & F_PDI_UE_IP_ADDR) &&
       pdr->pdi.ue_addr.flags & IE_UE_IP_ADDRESS_V4)
@@ -1113,7 +1113,7 @@ static void acl_set_ue_ip4(struct acl4_rule *ip4, int field, const gtpdp_pdr_t *
 }
 
 static void ip4_assign_src_address(struct acl4_rule *ip4,
-				   int field, const gtpdp_pdr_t *pdr)
+				   int field, const gtp_up_pdr_t *pdr)
 {
   if (ipfilter_address_cmp_const(&pdr->pdi.acl.src_address, ACL_FROM_ANY) == 0)
     {
@@ -1129,7 +1129,7 @@ static void ip4_assign_src_address(struct acl4_rule *ip4,
 }
 
 static void ip4_assign_dst_address(struct acl4_rule *ip4,
-				   int field, const gtpdp_pdr_t *pdr)
+				   int field, const gtp_up_pdr_t *pdr)
 {
   if (ipfilter_address_cmp_const(&pdr->pdi.acl.dst_address, ACL_TO_ASSIGNED) == 0)
     acl_set_ue_ip4(ip4, field, pdr);
@@ -1142,18 +1142,18 @@ static void ip4_assign_dst_address(struct acl4_rule *ip4,
 }
 
 static void ip4_assign_src_port(struct acl4_rule *ip4,
-				int field, const gtpdp_pdr_t *pdr)
+				int field, const gtp_up_pdr_t *pdr)
 {
   rte_acl_set_port(&ip4->field[field], &pdr->pdi.acl.src_port);
 }
 
 static void ip4_assign_dst_port(struct acl4_rule *ip4,
-				int field, const gtpdp_pdr_t *pdr)
+				int field, const gtp_up_pdr_t *pdr)
 {
   rte_acl_set_port(&ip4->field[field], &pdr->pdi.acl.dst_port);
 }
 
-static int add_ip4_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
+static int add_ip4_sdf(struct rte_acl_ctx *ctx, const gtp_up_pdr_t *pdr,
 		       u32 pdr_idx)
 {
   struct acl4_rule r = {
@@ -1217,7 +1217,7 @@ static u32 ip6_mask (u8 pos, u8 pref_len)
     return pref_len % 32;
 }
 
-static void acl_set_ue_ip6(struct acl6_rule *ip6, int field, const gtpdp_pdr_t *pdr)
+static void acl_set_ue_ip6(struct acl6_rule *ip6, int field, const gtp_up_pdr_t *pdr)
 {
   if ((pdr->pdi.fields & F_PDI_UE_IP_ADDR) &&
       pdr->pdi.ue_addr.flags & IE_UE_IP_ADDRESS_V6)
@@ -1235,7 +1235,7 @@ static void acl_set_ue_ip6(struct acl6_rule *ip6, int field, const gtpdp_pdr_t *
 }
 
 static void ip6_assign_src_address(struct acl6_rule *ip6,
-				   int field, const gtpdp_pdr_t *pdr)
+				   int field, const gtp_up_pdr_t *pdr)
 {
   if (ipfilter_address_cmp_const(&pdr->pdi.acl.src_address, ACL_FROM_ANY) == 0)
     for (int i = 0; i < 4; i++)
@@ -1253,7 +1253,7 @@ static void ip6_assign_src_address(struct acl6_rule *ip6,
 }
 
 static void ip6_assign_dst_address(struct acl6_rule *ip6,
-				   int field, const gtpdp_pdr_t *pdr)
+				   int field, const gtp_up_pdr_t *pdr)
 {
   if (ipfilter_address_cmp_const(&pdr->pdi.acl.dst_address, ACL_TO_ASSIGNED) == 0)
     acl_set_ue_ip6(ip6, field, pdr);
@@ -1266,18 +1266,18 @@ static void ip6_assign_dst_address(struct acl6_rule *ip6,
 }
 
 static void ip6_assign_src_port(struct acl6_rule *ip6,
-				int field, const gtpdp_pdr_t *pdr)
+				int field, const gtp_up_pdr_t *pdr)
 {
   rte_acl_set_port(&ip6->field[field], &pdr->pdi.acl.src_port);
 }
 
 static void ip6_assign_dst_port(struct acl6_rule *ip6,
-				int field, const gtpdp_pdr_t *pdr)
+				int field, const gtp_up_pdr_t *pdr)
 {
   rte_acl_set_port(&ip6->field[field], &pdr->pdi.acl.dst_port);
 }
 
-static int add_ip6_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
+static int add_ip6_sdf(struct rte_acl_ctx *ctx, const gtp_up_pdr_t *pdr,
 		       u32 pdr_idx)
 {
   struct acl6_rule r = {
@@ -1361,7 +1361,7 @@ static int add_wildcard_teid(struct rules *rules, const pfcp_f_teid_t teid, u32 
   return 0;
 }
 
-static int add_wildcard_ip4_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
+static int add_wildcard_ip4_sdf(struct rte_acl_ctx *ctx, const gtp_up_pdr_t *pdr,
 				u32 pdr_idx)
 {
   struct acl4_rule r = {
@@ -1397,7 +1397,7 @@ static int add_wildcard_ip4_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
     return 0;
 }
 
-static int add_wildcard_ip6_sdf(struct rte_acl_ctx *ctx, const gtpdp_pdr_t *pdr,
+static int add_wildcard_ip6_sdf(struct rte_acl_ctx *ctx, const gtp_up_pdr_t *pdr,
 				u32 pdr_idx)
 {
   struct acl6_rule r = {
@@ -1445,7 +1445,7 @@ static int sx_acl_create(u64 cp_f_seid, struct rules *rules, int direction)
    * Check numa socket enable or disable based on
    * get or set socketid.
    */
-  gtpdp_acl_ctx_t *ctx = &rules->sdf[direction];
+  gtp_up_acl_ctx_t *ctx = &rules->sdf[direction];
 
   char name[RTE_ACL_NAMESIZE];
   struct rte_acl_param ip4acl = {
@@ -1484,7 +1484,7 @@ static int sx_acl_create(u64 cp_f_seid, struct rules *rules, int direction)
 
 static int sx_acl_build(struct rules *rules, int direction)
 {
-  gtpdp_acl_ctx_t *ctx = &rules->sdf[direction];
+  gtp_up_acl_ctx_t *ctx = &rules->sdf[direction];
 
   if (ctx->ip4)
     {
@@ -1538,7 +1538,7 @@ static int sx_acl_build(struct rules *rules, int direction)
   return 0;
 }
 
-static void sx_acl_free(gtpdp_acl_ctx_t *ctx)
+static void sx_acl_free(gtp_up_acl_ctx_t *ctx)
 {
   rte_acl_free(ctx->ip4);
   rte_acl_free(ctx->ip6);
@@ -1574,11 +1574,11 @@ static void rules_add_v6_teid(struct rules * r, const ip6_address_t * addr, u32 
     ? 0 :								\
     (ip46_address_is_ip4(&(acl)->dst_address.address) ? SX_SDF_IPV4 : SX_SDF_IPV6)
 
-static int build_sx_sdf(gtpdp_session_t *sx)
+static int build_sx_sdf(gtp_up_session_t *sx)
 {
   struct rules *pending = sx_get_rules(sx, SX_PENDING);
   uint64_t cp_f_seid = sx->cp_f_seid;
-  gtpdp_pdr_t *pdr;
+  gtp_up_pdr_t *pdr;
 
   pending->flags &= ~(SX_SDF_IPV4 | SX_SDF_IPV6);
 
@@ -1648,7 +1648,7 @@ static int build_sx_sdf(gtpdp_session_t *sx)
   vec_foreach (pdr, pending->pdr)
     {
       int direction = (pdr->pdi.src_intf == SRC_INTF_ACCESS) ? UL_SDF : DL_SDF;
-      gtpdp_acl_ctx_t *ctx = &pending->sdf[direction];
+      gtp_up_acl_ctx_t *ctx = &pending->sdf[direction];
 
       if (!(pdr->pdi.fields & F_PDI_SDF_FILTER))
 	{
@@ -1682,7 +1682,7 @@ static int build_sx_sdf(gtpdp_session_t *sx)
   return 0;
 }
 
-int sx_update_apply(gtpdp_session_t *sx)
+int sx_update_apply(gtp_up_session_t *sx)
 {
   struct rules *pending = sx_get_rules(sx, SX_PENDING);
   struct rules *active = sx_get_rules(sx, SX_ACTIVE);
@@ -1726,7 +1726,7 @@ int sx_update_apply(gtpdp_session_t *sx)
 
   if (pending->far)
     {
-      gtpdp_far_t *far;
+      gtp_up_far_t *far;
 
       vec_foreach (far, pending->far)
 	if (far->forward.outer_header_creation != 0)
@@ -1750,7 +1750,7 @@ int sx_update_apply(gtpdp_session_t *sx)
 
   if (pending_urr)
     {
-      gtpdp_urr_t *urr;
+      gtp_up_urr_t *urr;
 
       vec_foreach (urr, pending->urr)
 	vlib_validate_combined_counter(&urr->measurement.volume, URR_COUNTER_NUM);
@@ -1784,8 +1784,8 @@ int sx_update_apply(gtpdp_session_t *sx)
 
       vec_foreach (send_em, pending->send_end_marker)
 	{
-	  gtpdp_far_t *far;
-	  gtpdp_far_t r = { .id = *send_em };
+	  gtp_up_far_t *far;
+	  gtp_up_far_t r = { .id = *send_em };
 
 	  if (!(far = vec_bsearch(&r, active->far, sx_far_id_compare)))
 	    continue;
@@ -1804,7 +1804,7 @@ int sx_update_apply(gtpdp_session_t *sx)
   return 0;
 }
 
-void sx_update_finish(gtpdp_session_t *sx)
+void sx_update_finish(gtp_up_session_t *sx)
 {
   sx_free_rules(sx, SX_PENDING);
 }
@@ -1815,9 +1815,9 @@ void sx_update_finish(gtpdp_session_t *sx)
  * @brief Function to return session info entry address.
  *
  */
-gtpdp_session_t *sx_lookup(uint64_t sess_id)
+gtp_up_session_t *sx_lookup(uint64_t sess_id)
 {
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   uword *p;
 
   p = hash_get (gtm->session_by_id, sess_id);
@@ -1839,7 +1839,7 @@ vlib_free_combined_counter (vlib_combined_counter_main_t * cm)
 }
 
 void process_urrs(vlib_main_t *vm, struct rules *r,
-		  gtpdp_pdr_t *pdr, vlib_buffer_t * b,
+		  gtp_up_pdr_t *pdr, vlib_buffer_t * b,
 		  u8 is_dl, u8 is_ul)
 {
   u32 thread_index = vlib_get_thread_index ();
@@ -1847,7 +1847,7 @@ void process_urrs(vlib_main_t *vm, struct rules *r,
 
   vec_foreach (urr_id, pdr->urr_ids)
     {
-      gtpdp_urr_t * urr = sx_get_urr_by_id(r, *urr_id);
+      gtp_up_urr_t * urr = sx_get_urr_by_id(r, *urr_id);
 
       if (!urr)
 	continue;
@@ -1911,13 +1911,13 @@ static const char *urr_method_flags[] = {
 u8 *
 format_sx_session(u8 * s, va_list * args)
 {
-  gtpdp_session_t *sx = va_arg (*args, gtpdp_session_t *);
+  gtp_up_session_t *sx = va_arg (*args, gtp_up_session_t *);
   int rule = va_arg (*args, int);
   struct rules *rules = sx_get_rules(sx, rule);
-  gtpdp_main_t *gtm = &gtpdp_main;
-  gtpdp_pdr_t *pdr;
-  gtpdp_far_t *far;
-  gtpdp_urr_t *urr;
+  gtp_up_main_t *gtm = &gtp_up_main;
+  gtp_up_pdr_t *pdr;
+  gtp_up_far_t *far;
+  gtp_up_urr_t *urr;
 
   s = format(s, "CP F-SEID: 0x%016" PRIx64 " (%" PRIu64 ") @ %p\n"
 	     "Active: %u\nPending: %u\n",
@@ -1928,7 +1928,7 @@ format_sx_session(u8 * s, va_list * args)
 	     rules->pdr, rules->far);
 
   vec_foreach (pdr, rules->pdr) {
-    gtpdp_nwi_t * nwi = NULL;
+    gtp_up_nwi_t * nwi = NULL;
     size_t j;
 
     if (!pool_is_free_index (gtm->nwis, pdr->pdi.nwi))
@@ -1980,7 +1980,7 @@ format_sx_session(u8 * s, va_list * args)
   }
 
   vec_foreach (far, rules->far) {
-    gtpdp_nwi_t * nwi = NULL;
+    gtp_up_nwi_t * nwi = NULL;
 
     if (!pool_is_free_index (gtm->nwis, far->forward.nwi))
       nwi = pool_elt_at_index (gtm->nwis, far->forward.nwi);

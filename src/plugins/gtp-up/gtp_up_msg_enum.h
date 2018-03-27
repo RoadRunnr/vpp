@@ -1,5 +1,5 @@
 /*
- * gtpdp_all_api_h.h - 3GPP TS 29.244 GTP-U DP plug-in api #include file
+ * gtp_up_msg_enum.h - 3GPP TS 29.244 GTP-U UP plug-in message enumeration
  *
  * Copyright (c) 2017 Travelping GmbH
  *
@@ -15,5 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* Include the generated file, see BUILT_SOURCES in Makefile.am */
-#include <gtpdp/gtpdp.api.h>
+#ifndef included_gtp_up_msg_enum_h
+#define included_gtp_up_msg_enum_h
+
+#include <vppinfra/byte_order.h>
+
+#define vl_msg_id(n,h) n,
+typedef enum {
+#include <gtp-up/gtp_up_all_api_h.h>
+    /* We'll want to know how many messages IDs we need... */
+    VL_MSG_FIRST_AVAILABLE,
+} vl_msg_id_t;
+#undef vl_msg_id
+
+#endif /* included_gtp_up_msg_enum_h */

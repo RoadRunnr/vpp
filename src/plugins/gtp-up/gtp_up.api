@@ -1,6 +1,6 @@
 /* Define a simple enable-disable binary API to control the feature */
 
-define gtpdp_enable_disable {
+define gtp_up_enable_disable {
     /* Client identifier, set from api_main.my_client_index */
     u32 client_index;
 
@@ -14,7 +14,7 @@ define gtpdp_enable_disable {
     u32 sw_if_index;
 };
 
-define gtpdp_enable_disable_reply {
+define gtp_up_enable_disable_reply {
     /* From the request */
     u32 context;
 

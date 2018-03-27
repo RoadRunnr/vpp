@@ -1,5 +1,5 @@
 /*
- * gtpdp.c - 3GPP TS 29.244 GTP-U DP plug-in for vpp
+ * gtp_up.c - 3GPP TS 29.244 GTP-U UP plug-in for vpp
  *
  * Copyright (c) 2017 Travelping GmbH
  *
@@ -27,34 +27,34 @@
 #include <vppinfra/byte_order.h>
 #include <vlibmemory/api.h>
 
-#include <gtpdp/gtpdp.h>
+#include <gtp-up/gtp_up.h>
 
 /* define message IDs */
-#include <gtpdp/gtpdp_msg_enum.h>
+#include <gtp-up/gtp_up_msg_enum.h>
 
 /* define message structures */
 #define vl_typedefs
-#include <gtpdp/gtpdp_all_api_h.h>
+#include <gtp-up/gtp_up_all_api_h.h>
 #undef vl_typedefs
 
 /* define generated endian-swappers */
 #define vl_endianfun
-#include <gtpdp/gtpdp_all_api_h.h>
+#include <gtp-up/gtp_up_all_api_h.h>
 #undef vl_endianfun
 
 /* instantiate all the print functions we know about */
 #define vl_print(handle, ...) vlib_cli_output (handle, __VA_ARGS__)
 #define vl_printfun
-#include <gtpdp/gtpdp_all_api_h.h>
+#include <gtp-up/gtp_up_all_api_h.h>
 #undef vl_printfun
 
 /* Get the API version number */
 #define vl_api_version(n,v) static u32 api_version=(v);
-#include <gtpdp/gtpdp_all_api_h.h>
+#include <gtp-up/gtp_up_all_api_h.h>
 #undef vl_api_version
 
 #define vl_msg_name_crc_list
-#include <gtpdp/gtpdp_all_api_h.h>
+#include <gtp-up/gtp_up_all_api_h.h>
 #undef vl_msg_name_crc_list
 
 #define REPLY_MSG_ID_BASE sm->msg_id_base
@@ -63,37 +63,37 @@
 /* List of message types that this plugin understands */
 
 static void
-setup_message_id_table (gtpdp_main_t * sm, api_main_t * am)
+setup_message_id_table (gtp_up_main_t * sm, api_main_t * am)
 {
 #define _(id,n,crc)   vl_msg_api_add_msg_name_crc (am, #n  #crc, id + sm->msg_id_base);
-  foreach_vl_msg_name_crc_gtpdp ;
+  foreach_vl_msg_name_crc_gtp_up ;
 #undef _
 }
 
-#define foreach_gtpdp_plugin_api_msg		\
-_(GTPDP_ENABLE_DISABLE, gtpdp_enable_disable)
+#define foreach_gtp_up_plugin_api_msg		\
+_(GTP_UP_ENABLE_DISABLE, gtp_up_enable_disable)
 
 /* API message handler */
-static void vl_api_gtpdp_enable_disable_t_handler
-(vl_api_gtpdp_enable_disable_t * mp)
+static void vl_api_gtp_up_enable_disable_t_handler
+(vl_api_gtp_up_enable_disable_t * mp)
 {
-  vl_api_gtpdp_enable_disable_reply_t * rmp;
-  gtpdp_main_t * sm = &gtpdp_main;
+  vl_api_gtp_up_enable_disable_reply_t * rmp;
+  gtp_up_main_t * sm = &gtp_up_main;
   int rv;
 
-  rv = gtpdp_enable_disable (sm, ntohl(mp->sw_if_index),
+  rv = gtp_up_enable_disable (sm, ntohl(mp->sw_if_index),
 				      (int) (mp->enable_disable));
 
-  REPLY_MACRO(VL_API_GTPDP_ENABLE_DISABLE_REPLY);
+  REPLY_MACRO(VL_API_GTP_UP_ENABLE_DISABLE_REPLY);
 }
 
 /* Set up the API message handling tables */
 static clib_error_t *
-gtpdp_api_hookup (vlib_main_t *vm)
+gtp_up_api_hookup (vlib_main_t *vm)
 {
-  gtpdp_main_t * sm = &gtpdp_main;
+  gtp_up_main_t * sm = &gtp_up_main;
 
-  u8 *name = format (0, "gtpdp_%08x%c", api_version, 0);
+  u8 *name = format (0, "gtp_up_%08x%c", api_version, 0);
   sm->msg_id_base = vl_msg_api_get_msg_ids
     ((char *) name, VL_MSG_FIRST_AVAILABLE);
 
@@ -105,7 +105,7 @@ gtpdp_api_hookup (vlib_main_t *vm)
 			   vl_api_##n##_t_endian,               \
 			   vl_api_##n##_t_print,                \
 			   sizeof(vl_api_##n##_t), 1);
-    foreach_gtpdp_plugin_api_msg;
+    foreach_gtp_up_plugin_api_msg;
 #undef _
 
     /* Add our API messages to the global name_crc hash table */
@@ -114,7 +114,7 @@ gtpdp_api_hookup (vlib_main_t *vm)
     return 0;
 }
 
-VLIB_API_INIT_FUNCTION (gtpdp_api_hookup);
+VLIB_API_INIT_FUNCTION (gtp_up_api_hookup);
 
 /*
  * fd.io coding-style-patch-verification: ON

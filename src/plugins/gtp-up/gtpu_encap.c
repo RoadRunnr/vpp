@@ -26,64 +26,64 @@
 #include <vnet/fib/ip6_fib.h>
 #include <vnet/ethernet/ethernet.h>
 
-#include <gtpdp/gtpdp.h>
-#include <gtpdp/gtpdp_sx.h>
+#include <gtp-up/gtp_up.h>
+#include <gtp-up/gtp_up_sx.h>
 
 /* Statistics (not all errors) */
-#define foreach_gtpdp_encap_error    \
+#define foreach_gtp_up_encap_error    \
 _(ENCAPSULATED, "good packets encapsulated")
 
-static char * gtpdp_encap_error_strings[] = {
+static char * gtp_up_encap_error_strings[] = {
 #define _(sym,string) string,
-  foreach_gtpdp_encap_error
+  foreach_gtp_up_encap_error
 #undef _
 };
 
 typedef enum {
-#define _(sym,str) GTPDP_ENCAP_ERROR_##sym,
-    foreach_gtpdp_encap_error
+#define _(sym,str) GTP_UP_ENCAP_ERROR_##sym,
+    foreach_gtp_up_encap_error
 #undef _
-    GTPDP_ENCAP_N_ERROR,
-} gtpdp_encap_error_t;
+    GTP_UP_ENCAP_N_ERROR,
+} gtp_up_encap_error_t;
 
-#define foreach_gtpdp_encap_next        \
+#define foreach_gtp_up_encap_next        \
 _(DROP, "error-drop")                  \
 _(IP4_LOOKUP, "ip4-lookup")             \
 _(IP6_LOOKUP, "ip6-lookup")
 
 typedef enum {
-    GTPDP_ENCAP_NEXT_DROP,
-    GTPDP_ENCAP_NEXT_IP4_LOOKUP,
-    GTPDP_ENCAP_NEXT_IP6_LOOKUP,
-    GTPDP_ENCAP_N_NEXT,
-} gtpdp_encap_next_t;
+    GTP_UP_ENCAP_NEXT_DROP,
+    GTP_UP_ENCAP_NEXT_IP4_LOOKUP,
+    GTP_UP_ENCAP_NEXT_IP6_LOOKUP,
+    GTP_UP_ENCAP_N_NEXT,
+} gtp_up_encap_next_t;
 
 typedef struct {
   u32 session_index;
   u32 teid;
-} gtpdp_encap_trace_t;
+} gtp_up_encap_trace_t;
 
-u8 * format_gtpdp_encap_trace (u8 * s, va_list * args)
+u8 * format_gtp_up_encap_trace (u8 * s, va_list * args)
 {
   CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
   CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
-  gtpdp_encap_trace_t * t
-      = va_arg (*args, gtpdp_encap_trace_t *);
+  gtp_up_encap_trace_t * t
+      = va_arg (*args, gtp_up_encap_trace_t *);
 
-  s = format (s, "GTPU encap to gtpdp_session%d teid 0x%08x",
+  s = format (s, "GTPU encap to gtp_up_session%d teid 0x%08x",
 	      t->session_index, t->teid);
   return s;
 }
 
-void gtpu_send_end_marker(gtpdp_far_forward_t * forward)
+void gtpu_send_end_marker(gtp_up_far_forward_t * forward)
 {
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   vlib_main_t *vm = gtm->vlib_main;
   u32 bi = 0;
   vlib_buffer_t *p0;
   u32 next0;
   vlib_buffer_free_list_t *fl;
-  gtpdp_peer_t * peer0 = NULL;
+  gtp_up_peer_t * peer0 = NULL;
   u8 is_ip4;
   ip4_gtpu_header_t * gtpu4;
   ip6_gtpu_header_t * gtpu6;
@@ -176,13 +176,13 @@ void gtpu_send_end_marker(gtpdp_far_forward_t * forward)
     _(0) _(1) _(2) _(3) _(4) _(5) _(6)
 
 static uword
-gtpdp_encap_inline (vlib_main_t * vm,
+gtp_up_encap_inline (vlib_main_t * vm,
 		   vlib_node_runtime_t * node,
 		   vlib_frame_t * from_frame,
 		   u32 is_ip4)
 {
   u32 n_left_from, next_index, * from, * to_next;
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   vnet_main_t * vnm = gtm->vnet_main;
   vnet_interface_main_t * im = &vnm->interface_main;
   u32 pkts_encapsulated = 0;
@@ -191,11 +191,11 @@ gtpdp_encap_inline (vlib_main_t * vm,
   u32 stats_sw_if_index, stats_n_packets, stats_n_bytes;
   u32 sw_if_index0 = 0, sw_if_index1 = 0, sw_if_index2 = 0, sw_if_index3 = 0;
   u32 next0 = 0, next1 = 0, next2 = 0, next3 = 0;
-  gtpdp_session_t * s0 = NULL, * s1 = NULL, * s2 = NULL, * s3 = NULL;
+  gtp_up_session_t * s0 = NULL, * s1 = NULL, * s2 = NULL, * s3 = NULL;
   struct rules * r0 = NULL, * r1 = NULL, * r2 = NULL, * r3 = NULL;
-  gtpdp_pdr_t * pdr0 = NULL, * pdr1 = NULL, * pdr2 = NULL, * pdr3 = NULL;
-  gtpdp_far_t * far0 = NULL, * far1 = NULL, * far2 = NULL, * far3 = NULL;
-  gtpdp_peer_t * peer0 = NULL, * peer1 = NULL, * peer2 = NULL, * peer3 = NULL;
+  gtp_up_pdr_t * pdr0 = NULL, * pdr1 = NULL, * pdr2 = NULL, * pdr3 = NULL;
+  gtp_up_far_t * far0 = NULL, * far1 = NULL, * far2 = NULL, * far3 = NULL;
+  gtp_up_peer_t * peer0 = NULL, * peer1 = NULL, * peer2 = NULL, * peer3 = NULL;
 
   from = vlib_frame_vector_args (from_frame);
   n_left_from = from_frame->n_vectors;
@@ -588,7 +588,7 @@ gtpdp_encap_inline (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_encap_trace_t *tr =
+	      gtp_up_encap_trace_t *tr =
 		vlib_add_trace (vm, node, b0, sizeof (*tr));
 	      tr->session_index = s0 - gtm->sessions;
 	      tr->teid = far0->forward.teid;
@@ -596,7 +596,7 @@ gtpdp_encap_inline (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(b1->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_encap_trace_t *tr =
+	      gtp_up_encap_trace_t *tr =
 		vlib_add_trace (vm, node, b1, sizeof (*tr));
 	      tr->session_index = s1 - gtm->sessions;
 	      tr->teid = far1->forward.teid;
@@ -604,7 +604,7 @@ gtpdp_encap_inline (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(b2->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_encap_trace_t *tr =
+	      gtp_up_encap_trace_t *tr =
 		vlib_add_trace (vm, node, b2, sizeof (*tr));
 	      tr->session_index = s2 - gtm->sessions;
 	      tr->teid = far2->forward.teid;
@@ -612,7 +612,7 @@ gtpdp_encap_inline (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(b3->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_encap_trace_t *tr =
+	      gtp_up_encap_trace_t *tr =
 		vlib_add_trace (vm, node, b3, sizeof (*tr));
 	      tr->session_index = s3 - gtm->sessions;
 	      tr->teid = far3->forward.teid;
@@ -769,7 +769,7 @@ gtpdp_encap_inline (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_encap_trace_t *tr =
+	      gtp_up_encap_trace_t *tr =
 		vlib_add_trace (vm, node, b0, sizeof (*tr));
 	      tr->session_index = s0 - gtm->sessions;
 	      tr->teid = far0->forward.teid;
@@ -784,7 +784,7 @@ gtpdp_encap_inline (vlib_main_t * vm,
 
   /* Do we still need this now that tunnel tx stats is kept? */
   vlib_node_increment_counter (vm, node->node_index,
-			       GTPDP_ENCAP_ERROR_ENCAPSULATED,
+			       GTP_UP_ENCAP_ERROR_ENCAPSULATED,
 			       pkts_encapsulated);
 
   /* Increment any remaining batch stats */
@@ -800,53 +800,53 @@ gtpdp_encap_inline (vlib_main_t * vm,
 }
 
 static uword
-gtpdp4_encap (vlib_main_t * vm,
+gtp_up4_encap (vlib_main_t * vm,
 	      vlib_node_runtime_t * node,
 	      vlib_frame_t * from_frame)
 {
-  return gtpdp_encap_inline (vm, node, from_frame, /* is_ip4 */ 1);
+  return gtp_up_encap_inline (vm, node, from_frame, /* is_ip4 */ 1);
 }
 
 static uword
-gtpdp6_encap (vlib_main_t * vm,
+gtp_up6_encap (vlib_main_t * vm,
 	      vlib_node_runtime_t * node,
 	      vlib_frame_t * from_frame)
 {
-  return gtpdp_encap_inline (vm, node, from_frame, /* is_ip4 */ 0);
+  return gtp_up_encap_inline (vm, node, from_frame, /* is_ip4 */ 0);
 }
 
-VLIB_REGISTER_NODE (gtpdp4_encap_node) = {
-  .function = gtpdp4_encap,
-  .name = "gtpdp4-encap",
+VLIB_REGISTER_NODE (gtp_up4_encap_node) = {
+  .function = gtp_up4_encap,
+  .name = "gtp_up4-encap",
   .vector_size = sizeof (u32),
-  .format_trace = format_gtpdp_encap_trace,
+  .format_trace = format_gtp_up_encap_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN(gtpdp_encap_error_strings),
-  .error_strings = gtpdp_encap_error_strings,
-  .n_next_nodes = GTPDP_ENCAP_N_NEXT,
+  .n_errors = ARRAY_LEN(gtp_up_encap_error_strings),
+  .error_strings = gtp_up_encap_error_strings,
+  .n_next_nodes = GTP_UP_ENCAP_N_NEXT,
   .next_nodes = {
-#define _(s,n) [GTPDP_ENCAP_NEXT_##s] = n,
-    foreach_gtpdp_encap_next
+#define _(s,n) [GTP_UP_ENCAP_NEXT_##s] = n,
+    foreach_gtp_up_encap_next
 #undef _
   },
 };
 
-VLIB_NODE_FUNCTION_MULTIARCH (gtpdp4_encap_node, gtpdp4_encap)
+VLIB_NODE_FUNCTION_MULTIARCH (gtp_up4_encap_node, gtp_up4_encap)
 
-VLIB_REGISTER_NODE (gtpdp6_encap_node) = {
-  .function = gtpdp6_encap,
-  .name = "gtpdp6-encap",
+VLIB_REGISTER_NODE (gtp_up6_encap_node) = {
+  .function = gtp_up6_encap,
+  .name = "gtp_up6-encap",
   .vector_size = sizeof (u32),
-  .format_trace = format_gtpdp_encap_trace,
+  .format_trace = format_gtp_up_encap_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN(gtpdp_encap_error_strings),
-  .error_strings = gtpdp_encap_error_strings,
-  .n_next_nodes = GTPDP_ENCAP_N_NEXT,
+  .n_errors = ARRAY_LEN(gtp_up_encap_error_strings),
+  .error_strings = gtp_up_encap_error_strings,
+  .n_next_nodes = GTP_UP_ENCAP_N_NEXT,
   .next_nodes = {
-#define _(s,n) [GTPDP_ENCAP_NEXT_##s] = n,
-    foreach_gtpdp_encap_next
+#define _(s,n) [GTP_UP_ENCAP_NEXT_##s] = n,
+    foreach_gtp_up_encap_next
 #undef _
   },
 };
 
-VLIB_NODE_FUNCTION_MULTIARCH (gtpdp6_encap_node, gtpdp6_encap)
+VLIB_NODE_FUNCTION_MULTIARCH (gtp_up6_encap_node, gtp_up6_encap)

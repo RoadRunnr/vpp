@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _GTPDP_SX_SERVER_H
-#define _GTPDP_SX_SERVER_H
+#ifndef _GTP_UP_SX_SERVER_H
+#define _GTP_UP_SX_SERVER_H
 
 #include <time.h>
 #include <vnet/session/session.h>
@@ -50,7 +50,7 @@ typedef struct
   vlib_main_t *vlib_main;
 } sx_server_main_t;
 
-void gtpdp_sx_send_data (stream_session_t * s, u8 * data);
-void gtpdp_sx_server_notify(u64 session_handle, u8 * data);
+void gtp_up_sx_send_data (stream_session_t * s, u8 * data);
+void gtp_up_sx_server_notify(u64 session_handle, u8 * data);
 
-#endif /* _GTPDP_SX_SERVER_H */
+#endif /* _GTP_UP_SX_SERVER_H */

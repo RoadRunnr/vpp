@@ -27,53 +27,53 @@
 #include <vnet/ip/ip.h>
 #include <vnet/ethernet/ethernet.h>
 
-#include <gtpdp/gtpdp.h>
-#include <gtpdp/gtpdp_sx.h>
+#include <gtp-up/gtp_up.h>
+#include <gtp-up/gtp_up_sx.h>
 
 /* Statistics (not all errors) */
-#define foreach_gtpdp_if_input_error    \
+#define foreach_gtp_up_if_input_error    \
 _(IF_INPUT, "good packets if_input")
 
-static char * gtpdp_if_input_error_strings[] = {
+static char * gtp_up_if_input_error_strings[] = {
 #define _(sym,string) string,
-  foreach_gtpdp_if_input_error
+  foreach_gtp_up_if_input_error
 #undef _
 };
 
 typedef enum {
-#define _(sym,str) GTPDP_IF_INPUT_ERROR_##sym,
-    foreach_gtpdp_if_input_error
+#define _(sym,str) GTP_UP_IF_INPUT_ERROR_##sym,
+    foreach_gtp_up_if_input_error
 #undef _
-    GTPDP_IF_INPUT_N_ERROR,
-} gtpdp_if_input_error_t;
+    GTP_UP_IF_INPUT_N_ERROR,
+} gtp_up_if_input_error_t;
 
-#define foreach_gtpdp_if_input_next		\
+#define foreach_gtp_up_if_input_next		\
   _(DROP, "error-drop")				\
-  _(IP4_CLASSIFY, "gtpdp-ip4-classify")		\
-  _(IP6_CLASSIFY, "gtpdp-ip6-classify")
+  _(IP4_CLASSIFY, "gtp_up-ip4-classify")		\
+  _(IP6_CLASSIFY, "gtp_up-ip6-classify")
 
 typedef enum {
-#define _(s,n) GTPDP_IF_INPUT_NEXT_##s,
-  foreach_gtpdp_if_input_next
+#define _(s,n) GTP_UP_IF_INPUT_NEXT_##s,
+  foreach_gtp_up_if_input_next
 #undef _
-  GTPDP_IF_INPUT_N_NEXT,
-} gtpdp_if_input_next_t;
+  GTP_UP_IF_INPUT_N_NEXT,
+} gtp_up_if_input_next_t;
 
 typedef struct {
   u32 session_index;
   u64 cp_f_seid;
   u8 packet_data[64 - 1 * sizeof (u32)];
-} gtpdp_if_input_trace_t;
+} gtp_up_if_input_trace_t;
 
-u8 * format_gtpdp_if_input_trace (u8 * s, va_list * args)
+u8 * format_gtp_up_if_input_trace (u8 * s, va_list * args)
 {
   CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
   CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
-  gtpdp_if_input_trace_t * t
-    = va_arg (*args, gtpdp_if_input_trace_t *);
+  gtp_up_if_input_trace_t * t
+    = va_arg (*args, gtp_up_if_input_trace_t *);
   u32 indent = format_get_indent (s);
 
-  s = format (s, "gtpdp_session%d seid %d \n%U%U",
+  s = format (s, "gtp_up_session%d seid %d \n%U%U",
 	      t->session_index, t->cp_f_seid,
 	      format_white_space, indent,
 	      format_ip4_header, t->packet_data, sizeof (t->packet_data));
@@ -81,10 +81,10 @@ u8 * format_gtpdp_if_input_trace (u8 * s, va_list * args)
 }
 
 static uword
-gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * from_frame)
+gtp_up_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * from_frame)
 {
   u32 n_left_from, next_index, * from, * to_next;
-  gtpdp_main_t * gtm = &gtpdp_main;
+  gtp_up_main_t * gtm = &gtp_up_main;
   vnet_main_t * vnm = gtm->vnet_main;
   vnet_interface_main_t * im = &vnm->interface_main;
 
@@ -141,12 +141,12 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 
 	  if ((ip4->ip_version_and_header_length & 0xF0) == 0x40)
 	    {
-	      next = GTPDP_IF_INPUT_NEXT_IP4_CLASSIFY;
+	      next = GTP_UP_IF_INPUT_NEXT_IP4_CLASSIFY;
 	      vnet_buffer (b)->gtpu.flags = BUFFER_HAS_IP4_HDR;
 	    }
 	  else
 	    {
-	      next = GTPDP_IF_INPUT_NEXT_IP6_CLASSIFY;
+	      next = GTP_UP_IF_INPUT_NEXT_IP6_CLASSIFY;
 	      vnet_buffer (b)->gtpu.flags = BUFFER_HAS_IP6_HDR;
 	    }
 
@@ -174,8 +174,8 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
 
 	  if (PREDICT_FALSE(b->flags & VLIB_BUFFER_IS_TRACED))
 	    {
-	      gtpdp_session_t * sess = pool_elt_at_index (gtm->sessions, sidx);
-	      gtpdp_if_input_trace_t *tr =
+	      gtp_up_session_t * sess = pool_elt_at_index (gtm->sessions, sidx);
+	      gtp_up_if_input_trace_t *tr =
 		vlib_add_trace (vm, node, b, sizeof (*tr));
 	      tr->session_index = sidx;
 	      tr->cp_f_seid = sess->cp_f_seid;
@@ -194,20 +194,20 @@ gtpdp_if_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * fro
   return from_frame->n_vectors;
 }
 
-VLIB_REGISTER_NODE (gtpdp_if_input_node) = {
-  .function = gtpdp_if_input,
-  .name = "gtpdp-if-input",
+VLIB_REGISTER_NODE (gtp_up_if_input_node) = {
+  .function = gtp_up_if_input,
+  .name = "gtp_up-if-input",
   .vector_size = sizeof (u32),
-  .format_trace = format_gtpdp_if_input_trace,
+  .format_trace = format_gtp_up_if_input_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
-  .n_errors = ARRAY_LEN(gtpdp_if_input_error_strings),
-  .error_strings = gtpdp_if_input_error_strings,
-  .n_next_nodes = GTPDP_IF_INPUT_N_NEXT,
+  .n_errors = ARRAY_LEN(gtp_up_if_input_error_strings),
+  .error_strings = gtp_up_if_input_error_strings,
+  .n_next_nodes = GTP_UP_IF_INPUT_N_NEXT,
   .next_nodes = {
-#define _(s,n) [GTPDP_IF_INPUT_NEXT_##s] = n,
-    foreach_gtpdp_if_input_next
+#define _(s,n) [GTP_UP_IF_INPUT_NEXT_##s] = n,
+    foreach_gtp_up_if_input_next
 #undef _
   },
 };
 
-VLIB_NODE_FUNCTION_MULTIARCH (gtpdp_if_input_node, gtpdp_if_input)
+VLIB_NODE_FUNCTION_MULTIARCH (gtp_up_if_input_node, gtp_up_if_input)

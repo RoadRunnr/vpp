@@ -36,28 +36,28 @@
 #include <vppinfra/format.h>
 
 #include "pfcp.h"
-#include "gtpdp_sx.h"
-#include "gtpdp_sx_server.h"
-#include "gtpdp_sx_api.h"
+#include "gtp_up_sx.h"
+#include "gtp_up_sx_server.h"
+#include "gtp_up_sx_api.h"
 
 #define DEBUG
 #define API_VERSION      1
 
 typedef struct {
   time_t start_time;
-} gtpdp_sx_session_t;
+} gtp_up_sx_session_t;
 
-static int node_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t *pfcp);
-static int session_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t *pfcp);
+static int node_msg(stream_session_t * s, gtp_up_sx_session_t * sx, pfcp_header_t *pfcp);
+static int session_msg(stream_session_t * s, gtp_up_sx_session_t * sx, pfcp_header_t *pfcp);
 
-size_t gtpdp_sx_api_session_data_size()
+size_t gtp_up_sx_api_session_data_size()
 {
-	return sizeof(gtpdp_sx_session_t);
+	return sizeof(gtp_up_sx_session_t);
 }
 
-void gtpdp_sx_api_session_data_init(void *sxp, time_t start_time)
+void gtp_up_sx_api_session_data_init(void *sxp, time_t start_time)
 {
-	gtpdp_sx_session_t *sx = (gtpdp_sx_session_t *)sxp;
+	gtp_up_sx_session_t *sx = (gtp_up_sx_session_t *)sxp;
 
 	memset(sx, 0, sizeof(*sx));
 	sx->start_time = start_time;
@@ -73,9 +73,9 @@ static void init_response_node_id(struct pfcp_response *r)
 
 /*************************************************************************/
 
-int gtpdp_sx_handle_msg(stream_session_t * s, void *sxp, u8 * data)
+int gtp_up_sx_handle_msg(stream_session_t * s, void *sxp, u8 * data)
 {
-  gtpdp_sx_session_t *sx = (gtpdp_sx_session_t *)sxp;
+  gtp_up_sx_session_t *sx = (gtp_up_sx_session_t *)sxp;
   int len = vec_len(data);
   u8 *p = data;
 
@@ -99,7 +99,7 @@ int gtpdp_sx_handle_msg(stream_session_t * s, void *sxp, u8 * data)
 	  hdr->length = offsetof(pfcp_header_t, msg_hdr.ies) - 4;
 	  _vec_len(hdr) = offsetof(pfcp_header_t, msg_hdr.ies);
 
-	  gtpdp_sx_send_data(s, (u8 *)hdr);
+	  gtp_up_sx_send_data(s, (u8 *)hdr);
 	  vec_free(hdr);
 
 	  goto next;
@@ -348,7 +348,7 @@ format_ipfilter(u8 * s, va_list * args)
 
 /*************************************************************************/
 
-static int send_session_request(gtpdp_session_t * sx, u8 type, struct pfcp_group *grp)
+static int send_session_request(gtp_up_session_t * sx, u8 type, struct pfcp_group *grp)
 {
   pfcp_header_t *req;
   u8 *b = NULL;
@@ -370,7 +370,7 @@ static int send_session_request(gtpdp_session_t * sx, u8 type, struct pfcp_group
 
   req->length = clib_host_to_net_u16(_vec_len(b) - 4);
 
-  gtpdp_sx_server_notify (sx->session_handle, b);
+  gtp_up_sx_server_notify (sx->session_handle, b);
 
  out_free:
   pfcp_free_msg(type, grp);
@@ -413,7 +413,7 @@ static int send_response(stream_session_t * s, u64 cp_seid, u8 type,
 
   resp->length = htons(_vec_len(b) - 4);
 
-  gtpdp_sx_send_data(s, b);
+  gtp_up_sx_send_data(s, b);
 
  out_free:
   pfcp_free_msg(type, grp);
@@ -424,7 +424,7 @@ static int send_response(stream_session_t * s, u64 cp_seid, u8 type,
 /* message handlers */
 
 static int handle_heartbeat_request(stream_session_t * s,
-				    gtpdp_sx_session_t * sx,
+				    gtp_up_sx_session_t * sx,
 				    pfcp_header_t *pfcp,
 				    pfcp_heartbeat_request_t *msg)
 {
@@ -443,7 +443,7 @@ static int handle_heartbeat_request(stream_session_t * s,
 }
 
 static int handle_heartbeat_response(stream_session_t * s,
-				     gtpdp_sx_session_t * sx,
+				     gtp_up_sx_session_t * sx,
 				     pfcp_header_t *pfcp,
 				     pfcp_heartbeat_response_t *msg)
 {
@@ -451,7 +451,7 @@ static int handle_heartbeat_response(stream_session_t * s,
 }
 
 static int handle_pfd_management_request(stream_session_t * s,
-					 gtpdp_sx_session_t * sx,
+					 gtp_up_sx_session_t * sx,
 					 pfcp_header_t *pfcp,
 					 pfcp_pfd_management_request_t *msg)
 {
@@ -459,7 +459,7 @@ static int handle_pfd_management_request(stream_session_t * s,
 }
 
 static int handle_pfd_management_response(stream_session_t * s,
-					  gtpdp_sx_session_t * sx,
+					  gtp_up_sx_session_t * sx,
 					  pfcp_header_t *pfcp,
 					  pfcp_pfd_management_response_t *msg)
 {
@@ -467,14 +467,14 @@ static int handle_pfd_management_response(stream_session_t * s,
 }
 
 static int handle_association_setup_request(stream_session_t * s,
-					    gtpdp_sx_session_t * sx,
+					    gtp_up_sx_session_t * sx,
 					    pfcp_header_t *pfcp,
 					    pfcp_association_setup_request_t *msg)
 {
   pfcp_association_setup_response_t resp;
-  gtpdp_main_t * gtm = &gtpdp_main;
-  gtpdp_node_assoc_t *n;
-  gtpdp_nwi_t * nwi;
+  gtp_up_main_t * gtm = &gtp_up_main;
+  gtp_up_node_assoc_t *n;
+  gtp_up_nwi_t * nwi;
   int r = 0;
 
   memset(&resp, 0, sizeof(resp));
@@ -508,7 +508,7 @@ static int handle_association_setup_request(stream_session_t * s,
 
   pool_foreach (nwi, gtm->nwis,
     ({
-      gtpdp_nwi_ip_res_t * ip_res;
+      gtp_up_nwi_ip_res_t * ip_res;
 
       pool_foreach (ip_res, nwi->ip_res,
 	({
@@ -549,7 +549,7 @@ static int handle_association_setup_request(stream_session_t * s,
 }
 
 static int handle_association_setup_response(stream_session_t * s,
-					     gtpdp_sx_session_t * sx,
+					     gtp_up_sx_session_t * sx,
 					     pfcp_header_t *pfcp,
 					     pfcp_association_setup_response_t *msg)
 {
@@ -557,7 +557,7 @@ static int handle_association_setup_response(stream_session_t * s,
 }
 
 static int handle_association_update_request(stream_session_t * s,
-					     gtpdp_sx_session_t * sx,
+					     gtp_up_sx_session_t * sx,
 					     pfcp_header_t *pfcp,
 					     pfcp_association_update_request_t *msg)
 {
@@ -565,7 +565,7 @@ static int handle_association_update_request(stream_session_t * s,
 }
 
 static int handle_association_update_response(stream_session_t * s,
-					      gtpdp_sx_session_t * sx,
+					      gtp_up_sx_session_t * sx,
 					      pfcp_header_t *pfcp,
 					      pfcp_association_update_response_t *msg)
 {
@@ -573,7 +573,7 @@ static int handle_association_update_response(stream_session_t * s,
 }
 
 static int handle_association_release_request(stream_session_t * s,
-					      gtpdp_sx_session_t * sx,
+					      gtp_up_sx_session_t * sx,
 					      pfcp_header_t *pfcp,
 					      pfcp_association_release_request_t *msg)
 {
@@ -581,7 +581,7 @@ static int handle_association_release_request(stream_session_t * s,
 }
 
 static int handle_association_release_response(stream_session_t * s,
-					       gtpdp_sx_session_t * sx,
+					       gtp_up_sx_session_t * sx,
 					       pfcp_header_t *pfcp,
 					       pfcp_association_release_response_t *msg)
 {
@@ -589,7 +589,7 @@ static int handle_association_release_response(stream_session_t * s,
 }
 
 /* static int handle_version_not_supported_response(stream_session_t * s, */
-/* 						 gtpdp_sx_session_t * sx, */
+/* 						 gtp_up_sx_session_t * sx, */
 /* 						 pfcp_header_t *pfcp, */
 /* 						 pfcp_version_not_supported_response_t *msg) */
 /* { */
@@ -597,7 +597,7 @@ static int handle_association_release_response(stream_session_t * s,
 /* } */
 
 static int handle_node_report_request(stream_session_t * s,
-				      gtpdp_sx_session_t * sx,
+				      gtp_up_sx_session_t * sx,
 				      pfcp_header_t *pfcp,
 				      pfcp_node_report_request_t *msg)
 {
@@ -605,14 +605,14 @@ static int handle_node_report_request(stream_session_t * s,
 }
 
 static int handle_node_report_response(stream_session_t * s,
-				       gtpdp_sx_session_t * sx,
+				       gtp_up_sx_session_t * sx,
 				       pfcp_header_t *pfcp,
 				       pfcp_node_report_response_t *msg)
 {
   return -1;
 }
 
-static int node_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t *pfcp)
+static int node_msg(stream_session_t * s, gtp_up_sx_session_t * sx, pfcp_header_t *pfcp)
 {
   union {
     struct pfcp_group grp;
@@ -726,10 +726,10 @@ static int node_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t
 #define OPT(MSG,FIELD,VALUE,DEFAULT)					\
   ((ISSET_BIT((MSG)->grp.fields, (FIELD))) ? MSG->VALUE : (DEFAULT))
 
-static gtpdp_nwi_t *lookup_nwi(u8 * name)
+static gtp_up_nwi_t *lookup_nwi(u8 * name)
 {
-  gtpdp_main_t * gtm = &gtpdp_main;
-  gtpdp_nwi_t * nwi;
+  gtp_up_main_t * gtm = &gtp_up_main;
+  gtp_up_nwi_t * nwi;
   uword *p;
 
   if (pool_elts(gtm->nwis) == 0)
@@ -786,20 +786,20 @@ static u8 dst_to_intf(u8 dst)
   return 0;
 }
 
-static int handle_create_pdr(gtpdp_session_t *sess, pfcp_create_pdr_t *create_pdr,
+static int handle_create_pdr(gtp_up_session_t *sess, pfcp_create_pdr_t *create_pdr,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
 {
   struct pfcp_response *response = (struct pfcp_response *)(grp + 1);
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   pfcp_create_pdr_t *pdr;
   int r = 0;
 
   vec_foreach(pdr, create_pdr)
     {
-      gtpdp_pdr_t *create;
-      gtpdp_nwi_t *nwi;
+      gtp_up_pdr_t *create;
+      gtp_up_nwi_t *nwi;
 
       create = clib_mem_alloc_no_fail(sizeof(*create));
       memset(create, 0, sizeof(*create));
@@ -899,20 +899,20 @@ static int handle_create_pdr(gtpdp_session_t *sess, pfcp_create_pdr_t *create_pd
   return r;
 }
 
-static int handle_update_pdr(gtpdp_session_t *sess, pfcp_update_pdr_t *update_pdr,
+static int handle_update_pdr(gtp_up_session_t *sess, pfcp_update_pdr_t *update_pdr,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
 {
   struct pfcp_response *response = (struct pfcp_response *)(grp + 1);
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   pfcp_update_pdr_t *pdr;
   int r = 0;
 
   vec_foreach(pdr, update_pdr)
     {
-      gtpdp_pdr_t *update;
-      gtpdp_nwi_t *nwi;
+      gtp_up_pdr_t *update;
+      gtp_up_nwi_t *nwi;
 
       update = sx_get_pdr(sess, SX_PENDING, pdr->pdr_id);
       if (!update)
@@ -1003,7 +1003,7 @@ static int handle_update_pdr(gtpdp_session_t *sess, pfcp_update_pdr_t *update_pd
   return r;
 }
 
-static int handle_remove_pdr(gtpdp_session_t *sess, pfcp_remove_pdr_t *remove_pdr,
+static int handle_remove_pdr(gtp_up_session_t *sess, pfcp_remove_pdr_t *remove_pdr,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
@@ -1034,7 +1034,7 @@ static int handle_remove_pdr(gtpdp_session_t *sess, pfcp_remove_pdr_t *remove_pd
 }
 
 static void
-ip_udp_gtpu_rewrite (gtpdp_far_forward_t * ff)
+ip_udp_gtpu_rewrite (gtp_up_far_forward_t * ff)
 {
   union
   {
@@ -1098,19 +1098,19 @@ ip_udp_gtpu_rewrite (gtpdp_far_forward_t * ff)
   return;
 }
 
-static int handle_create_far(gtpdp_session_t *sess, pfcp_create_far_t *create_far,
+static int handle_create_far(gtp_up_session_t *sess, pfcp_create_far_t *create_far,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
 {
   struct pfcp_response *response = (struct pfcp_response *)(grp + 1);
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   pfcp_create_far_t *far;
   int r = 0;
 
   vec_foreach(far, create_far)
     {
-      gtpdp_far_t *create;
+      gtp_up_far_t *create;
 
       create = clib_mem_alloc_no_fail(sizeof(*create));
       memset(create, 0, sizeof(*create));
@@ -1121,7 +1121,7 @@ static int handle_create_far(gtpdp_session_t *sess, pfcp_create_far_t *create_fa
       if ((create->apply_action & FAR_FORWARD) &&
 	  far->grp.fields & CREATE_FAR_FORWARDING_PARAMETERS)
 	{
-	  gtpdp_nwi_t *nwi;
+	  gtp_up_nwi_t *nwi;
 
 	  nwi = lookup_nwi(
 			   ISSET_BIT(far->forwarding_parameters.grp.fields,
@@ -1182,19 +1182,19 @@ static int handle_create_far(gtpdp_session_t *sess, pfcp_create_far_t *create_fa
   return r;
 }
 
-static int handle_update_far(gtpdp_session_t *sess, pfcp_update_far_t *update_far,
+static int handle_update_far(gtp_up_session_t *sess, pfcp_update_far_t *update_far,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
 {
   struct pfcp_response *response = (struct pfcp_response *)(grp + 1);
-  gtpdp_main_t *gtm = &gtpdp_main;
+  gtp_up_main_t *gtm = &gtp_up_main;
   pfcp_update_far_t *far;
   int r = 0;
 
   vec_foreach(far, update_far)
     {
-      gtpdp_far_t *update;
+      gtp_up_far_t *update;
 
       update = sx_get_far(sess, SX_PENDING, far->far_id);
       if (!update)
@@ -1211,7 +1211,7 @@ static int handle_update_far(gtpdp_session_t *sess, pfcp_update_far_t *update_fa
       if ((update->apply_action & FAR_FORWARD) &&
 	  far->grp.fields & UPDATE_FAR_UPDATE_FORWARDING_PARAMETERS)
 	{
-	  gtpdp_nwi_t *nwi;
+	  gtp_up_nwi_t *nwi;
 
 	  if (ISSET_BIT(far->update_forwarding_parameters.grp.fields,
 			UPDATE_FORWARDING_PARAMETERS_NETWORK_INSTANCE))
@@ -1276,7 +1276,7 @@ static int handle_update_far(gtpdp_session_t *sess, pfcp_update_far_t *update_fa
   return r;
 }
 
-static int handle_remove_far(gtpdp_session_t *sess, pfcp_remove_far_t *remove_far,
+static int handle_remove_far(gtp_up_session_t *sess, pfcp_remove_far_t *remove_far,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
@@ -1306,7 +1306,7 @@ static int handle_remove_far(gtpdp_session_t *sess, pfcp_remove_far_t *remove_fa
   return r;
 }
 
-static int handle_create_urr(gtpdp_session_t *sess, pfcp_create_urr_t *create_urr,
+static int handle_create_urr(gtp_up_session_t *sess, pfcp_create_urr_t *create_urr,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
@@ -1317,7 +1317,7 @@ static int handle_create_urr(gtpdp_session_t *sess, pfcp_create_urr_t *create_ur
 
   vec_foreach(urr, create_urr)
     {
-      gtpdp_urr_t *create;
+      gtp_up_urr_t *create;
 
       create = clib_mem_alloc_no_fail(sizeof(*create));
       memset(create, 0, sizeof(*create));
@@ -1365,7 +1365,7 @@ static int handle_create_urr(gtpdp_session_t *sess, pfcp_create_urr_t *create_ur
   return r;
 }
 
-static int handle_update_urr(gtpdp_session_t *sess, pfcp_update_urr_t *update_urr,
+static int handle_update_urr(gtp_up_session_t *sess, pfcp_update_urr_t *update_urr,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
@@ -1376,7 +1376,7 @@ static int handle_update_urr(gtpdp_session_t *sess, pfcp_update_urr_t *update_ur
 
   vec_foreach(urr, update_urr)
     {
-      gtpdp_urr_t *update;
+      gtp_up_urr_t *update;
 
       update = sx_get_urr(sess, SX_PENDING, urr->urr_id);
       if (!update)
@@ -1423,7 +1423,7 @@ static int handle_update_urr(gtpdp_session_t *sess, pfcp_update_urr_t *update_ur
   return r;
 }
 
-static int handle_remove_urr(gtpdp_session_t *sess, pfcp_remove_urr_t *remove_urr,
+static int handle_remove_urr(gtp_up_session_t *sess, pfcp_remove_urr_t *remove_urr,
 			     struct pfcp_group *grp,
 			     int failed_rule_id_field,
 			     pfcp_failed_rule_id_t *failed_rule_id)
@@ -1453,7 +1453,7 @@ static int handle_remove_urr(gtpdp_session_t *sess, pfcp_remove_urr_t *remove_ur
   return r;
 }
 
-static pfcp_usage_report_t *build_usage_report(gtpdp_session_t *sess, gtpdp_urr_t *urr,
+static pfcp_usage_report_t *build_usage_report(gtp_up_session_t *sess, gtp_up_urr_t *urr,
 					       u32 trigger, pfcp_usage_report_t **report)
 {
   pfcp_usage_report_t *r;
@@ -1502,7 +1502,7 @@ static pfcp_usage_report_t *build_usage_report(gtpdp_session_t *sess, gtpdp_urr_
 }
 
 static int handle_session_set_deletion_request(stream_session_t * s,
-					       gtpdp_sx_session_t * sx,
+					       gtp_up_sx_session_t * sx,
 					       pfcp_header_t *pfcp,
 					       pfcp_session_set_deletion_request_t *msg)
 {
@@ -1510,7 +1510,7 @@ static int handle_session_set_deletion_request(stream_session_t * s,
 }
 
 static int handle_session_set_deletion_response(stream_session_t * s,
-						gtpdp_sx_session_t * sx,
+						gtp_up_sx_session_t * sx,
 						pfcp_header_t *pfcp,
 						pfcp_session_set_deletion_response_t *msg)
 {
@@ -1518,13 +1518,13 @@ static int handle_session_set_deletion_response(stream_session_t * s,
 }
 
 static int handle_session_establishment_request(stream_session_t * s,
-						gtpdp_sx_session_t * sx,
+						gtp_up_sx_session_t * sx,
 						pfcp_header_t *pfcp,
 						pfcp_session_establishment_request_t *msg)
 {
   pfcp_session_establishment_response_t resp;
   transport_connection_t *tc;
-  gtpdp_session_t *sess;
+  gtp_up_session_t *sess;
   int r = 0;
 
   assert(sx != NULL);
@@ -1587,7 +1587,7 @@ static int handle_session_establishment_request(stream_session_t * s,
 }
 
 static int handle_session_establishment_response(stream_session_t * s,
-						 gtpdp_sx_session_t * sx,
+						 gtp_up_sx_session_t * sx,
 						 pfcp_header_t *pfcp,
 						 pfcp_session_establishment_response_t *msg)
 {
@@ -1595,13 +1595,13 @@ static int handle_session_establishment_response(stream_session_t * s,
 }
 
 static int handle_session_modification_request(stream_session_t * s,
-					       gtpdp_sx_session_t * sx,
+					       gtp_up_sx_session_t * sx,
 					       pfcp_header_t *pfcp,
 					       pfcp_session_modification_request_t *msg)
 {
   pfcp_session_modification_response_t resp;
   pfcp_query_urr_t *qry;
-  gtpdp_session_t *sess;
+  gtp_up_session_t *sess;
   u64 cp_f_seid = 0;
   int r = 0;
 
@@ -1696,7 +1696,7 @@ static int handle_session_modification_request(stream_session_t * s,
 
       vec_foreach(qry, msg->query_urr)
 	{
-	  gtpdp_urr_t *urr;
+	  gtp_up_urr_t *urr;
 
 	  if (!(urr = sx_get_urr(sess, SX_PENDING, qry->urr_id)))
 	    continue;
@@ -1713,7 +1713,7 @@ static int handle_session_modification_request(stream_session_t * s,
       active = sx_get_rules(sess, SX_ACTIVE);
       if (vec_len(active->urr) != 0)
 	{
-	  gtpdp_urr_t *urr;
+	  gtp_up_urr_t *urr;
 
 	  SET_BIT(resp.grp.fields, SESSION_MODIFICATION_RESPONSE_USAGE_REPORT);
 
@@ -1738,7 +1738,7 @@ static int handle_session_modification_request(stream_session_t * s,
 }
 
 static int handle_session_modification_response(stream_session_t * s,
-						gtpdp_sx_session_t * sx,
+						gtp_up_sx_session_t * sx,
 						pfcp_header_t *pfcp,
 						pfcp_session_modification_response_t *msg)
 {
@@ -1746,12 +1746,12 @@ static int handle_session_modification_response(stream_session_t * s,
 }
 
 static int handle_session_deletion_request(stream_session_t * s,
-					   gtpdp_sx_session_t * sx,
+					   gtp_up_sx_session_t * sx,
 					   pfcp_header_t *pfcp,
 					   pfcp_session_deletion_request_t *msg)
 {
   pfcp_session_deletion_response_t resp;
-  gtpdp_session_t *sess;
+  gtp_up_session_t *sess;
   struct rules *active;
   u64 cp_f_seid = 0;
   int r = 0;
@@ -1781,7 +1781,7 @@ static int handle_session_deletion_request(stream_session_t * s,
   active = sx_get_rules(sess, SX_ACTIVE);
   if (vec_len(active->urr) != 0)
     {
-      gtpdp_urr_t *urr;
+      gtp_up_urr_t *urr;
 
       SET_BIT(resp.grp.fields, SESSION_DELETION_RESPONSE_USAGE_REPORT);
 
@@ -1805,7 +1805,7 @@ static int handle_session_deletion_request(stream_session_t * s,
 }
 
 static int handle_session_deletion_response(stream_session_t * s,
-					    gtpdp_sx_session_t * sx,
+					    gtp_up_sx_session_t * sx,
 					    pfcp_header_t *pfcp,
 					    pfcp_session_deletion_response_t *msg)
 {
@@ -1813,7 +1813,7 @@ static int handle_session_deletion_response(stream_session_t * s,
 }
 
 static int handle_session_report_request(stream_session_t * s,
-					 gtpdp_sx_session_t * sx,
+					 gtp_up_sx_session_t * sx,
 					 pfcp_header_t *pfcp,
 					 pfcp_session_report_request_t *msg)
 {
@@ -1821,7 +1821,7 @@ static int handle_session_report_request(stream_session_t * s,
 }
 
 static int handle_session_report_response(stream_session_t * s,
-					  gtpdp_sx_session_t * sx,
+					  gtp_up_sx_session_t * sx,
 					  pfcp_header_t *pfcp,
 					  pfcp_session_report_response_t *msg)
 {
@@ -1829,7 +1829,7 @@ static int handle_session_report_response(stream_session_t * s,
 }
 
 
-static int session_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_header_t *pfcp)
+static int session_msg(stream_session_t * s, gtp_up_sx_session_t * sx, pfcp_header_t *pfcp)
 {
   union {
     struct pfcp_group grp;
@@ -1922,7 +1922,7 @@ static int session_msg(stream_session_t * s, gtpdp_sx_session_t * sx, pfcp_heade
   return 0;
 }
 
-void gtpdp_sx_error_report(gtpdp_session_t * sx, gtp_error_ind_t * error)
+void gtp_up_sx_error_report(gtp_up_session_t * sx, gtp_error_ind_t * error)
 {
   pfcp_session_report_request_t req;
   pfcp_f_teid_t f_teid;

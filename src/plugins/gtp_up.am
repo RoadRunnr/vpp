@@ -1,0 +1,67 @@
+#
+# Copyright (c) 2017 Travelping GmbH
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+vppapitestplugins_LTLIBRARIES += gtpup_test_plugin.la
+vppplugins_LTLIBRARIES += gtpup_plugin.la
+
+gtpup_plugin_la_LDFLAGS = $(AM_LDFLAGS) -lurcu-qsbr -lurcu
+if ENABLE_DPDK_SHARED
+gtpup_plugin_la_LDFLAGS += -ldpdk
+else
+gtpup_plugin_la_LDFLAGS += -Wl,--whole-archive,-l:libdpdk.a,--no-whole-archive
+endif
+if WITH_AESNI_MB_LIB
+gtpup_plugin_la_LDFLAGS += -Wl,--exclude-libs,libIPSec_MB.a,-l:libIPSec_MB.a
+endif
+if WITH_ISA_L_CRYPTO_LIB
+gtpup_plugin_la_LDFLAGS += -Wl,--exclude-libs,libisal_crypto.a,-l:libisal_crypto.a
+endif
+
+gtpup_plugin_la_CFLAGS = $(AM_CFLAGS)
+gtpup_plugin_la_LDFLAGS += -Wl,-lnuma
+gtpup_plugin_la_LDFLAGS += -Wl,-lm,-ldl
+gtpup_plugin_la_LIBADD =
+
+gtpup_plugin_la_SOURCES = \
+  gtp-up/node.c \
+  gtp-up/pfcp.h \
+  gtp-up/pfcp.c \
+  gtp-up/gtpu_encap.c \
+  gtp-up/gtpu_decap.c \
+  gtp-up/gtp_up_if_input.c \
+  gtp-up/gtp_up_classify.c \
+  gtp-up/gtp_up.c \
+  gtp-up/gtp_up_api.c \
+  gtp-up/gtp_up_sx.c \
+  gtp-up/gtp_up_sx_api.c \
+  gtp-up/gtp_up_sx_server.c \
+  gtp-up/gtp_up.h \
+  gtp-up/gtp_up_all_api_h.h \
+  gtp-up/gtp_up_msg_enum.h \
+  gtp-up/gtp_up_sx.h \
+  gtp-up/gtp_up_sx_api.h
+
+API_FILES += gtp-up/gtp_up.api
+
+nobase_apiinclude_HEADERS +=		\
+  gtp-up/gtp_up_all_api_h.h \
+  gtp-up/gtp_up_msg_enum.h \
+  gtp-up/gtp_up.api.h
+
+gtpup_test_plugin_la_SOURCES = \
+  gtp-up/gtp_up_test.c \
+  gtp-up/gtp_up.api.h
+
+# vi:syntax=automake
